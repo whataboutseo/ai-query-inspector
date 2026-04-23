@@ -208,6 +208,10 @@ function maybeSetFullPageClass() {
 function applyTheme(mode = 'dark') {
   themeMode = mode === 'light' ? 'light' : 'dark';
   document.body.classList.toggle('light-mode', themeMode === 'light');
+  // Stage 5.1: drive the design-system tokens via data-theme on <html>.
+  // The legacy .light-mode body class stays around so existing popup.css
+  // rules keep working until each panel is migrated off them.
+  document.documentElement.setAttribute('data-theme', themeMode);
   // Theme button stays an icon — update the tooltip/aria-label only, so
   // the SVG inside isn't wiped out by a textContent write.
   if (els.themeToggleBtn) {

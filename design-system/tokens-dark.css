@@ -1,0 +1,45 @@
+/* ============================================================
+   AI QUERY INSPECTOR — DARK MODE TOKEN OVERRIDES
+   ------------------------------------------------------------
+   Activated by `html[data-theme="dark"]`. Main palette is light
+   (per the design system). Dark is a user opt-in for people who
+   work at night; keep the same accent hue but nudge it brighter
+   for legibility on dark surfaces.
+   ============================================================ */
+
+html[data-theme="dark"] {
+  /* Neutrals — deep navy-ink background, warm-neutral text */
+  --bg:           #0A0E1C;
+  --bg-2:         #121829;
+  --card:         #151C2F;
+  --card-2:       #1A2238;
+
+  --border:       #2A324A;
+  --border-2:     #3A435A;
+
+  --ink:          #EDF0F7;
+  --ink-2:        #C7CBD8;
+  --ink-3:        #8893A8;
+  --ink-4:        #5C657A;
+
+  /* Accent — brighter teal for legibility on dark */
+  --accent:       #1F9680;
+  --accent-2:     #2BB096;
+  --accent-bg:    rgba(31, 150, 128, 0.14);
+  --accent-line:  rgba(31, 150, 128, 0.38);
+
+  /* Semantic — tuned for dark backgrounds */
+  --warn:         #D79146;
+  --warn-bg:      rgba(215, 145, 70, 0.14);
+  --danger:       #E06B6B;
+  --danger-bg:    rgba(224, 107, 107, 0.14);
+
+  /* Source categorization */
+  --cited:        #1F9680;
+  --considered:   #D4B74A;
+  --considered-bg: rgba(212, 183, 74, 0.14);
+
+  /* Shadows — darker, softer */
+  --shadow-1: 0 1px 0 rgba(0,0,0,.2), 0 1px 2px rgba(0,0,0,.25);
+  --shadow-2: 0 1px 0 rgba(0,0,0,.25), 0 8px 24px -8px rgba(0,0,0,.5);
+}

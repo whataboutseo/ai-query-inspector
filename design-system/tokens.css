@@ -1,0 +1,125 @@
+/* ============================================================
+   AI QUERY INSPECTOR — DESIGN TOKENS
+   The single source of truth for all values.
+   Never inline colors, fonts, spacing, or shadows — always use these.
+   ============================================================ */
+
+:root {
+
+  /* --- COLORS · Neutrals -------------------------------------- */
+  --bg:           #F7F6F1;  /* app background — warm off-white, NOT cool blue-grey */
+  --bg-2:         #EFEDE5;  /* subtle tint for bar tracks, pills */
+  --card:         #FFFFFF;  /* default card surface */
+  --card-2:       #FCFBF7;  /* slightly warmer card — for hover & table headers */
+
+  --border:       #E5E3DA;  /* default 1px border */
+  --border-2:     #D4D2C7;  /* stronger border — hover, dashed empty states */
+
+  --ink:          #0F0F0E;  /* primary text, display numbers */
+  --ink-2:        #3A3A36;  /* body text */
+  --ink-3:        #6E6E66;  /* meta, labels, secondary */
+  --ink-4:        #A3A39A;  /* tertiary, placeholders */
+
+  /* --- COLORS · Accent (the ONE chromatic voice) ----------------
+     Deep teal-green. Used ONLY for:
+     - The "live" indicator dot
+     - "Cited" source markers
+     - Primary CTA emphasis
+     - Section underline accents
+     Do NOT introduce additional accents (no blues, purples, oranges).
+  -------------------------------------------------------------- */
+  --accent:       #0E5C4E;  /* base accent */
+  --accent-2:     #0A7A66;  /* hover / slightly lighter variant */
+  --accent-bg:    #E3F0EB;  /* accent tint for backgrounds, pills */
+  --accent-line:  #B8D6CC;  /* 1px border in accent range */
+
+  /* --- COLORS · Semantic -------------------------------------- */
+  --warn:         #A14F00;
+  --warn-bg:      #F8ECD9;
+  --danger:       #952020;
+  --danger-bg:    #F6E0DE;
+
+  /* --- COLORS · Source type categorization ------------------- */
+  --cited:        #0E5C4E;  /* same as accent */
+  --considered:   #8A6D1F;  /* warm olive — second-tier semantic */
+  --considered-bg:#F3EAD0;
+
+  /* --- RADIUS ------------------------------------------------- */
+  --radius-sm:   4px;
+  --radius:      8px;
+  --radius-lg:  14px;
+
+  /* --- SHADOWS ------------------------------------------------ */
+  --shadow-1: 0 1px 0 rgba(15,15,14,.04), 0 1px 2px rgba(15,15,14,.03);
+  --shadow-2: 0 1px 0 rgba(15,15,14,.04), 0 8px 24px -8px rgba(15,15,14,.08);
+
+  /* --- TYPOGRAPHY · Families ----------------------------------
+     Three fonts, no substitutions. NEVER use Inter, Roboto,
+     Arial, system-ui, Helvetica, or Space Grotesk.
+  -------------------------------------------------------------- */
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-sans:    'Geist', ui-sans-serif, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+
+  /* --- TYPOGRAPHY · Scale ------------------------------------
+     Use these sizes; don't invent intermediate ones.
+  -------------------------------------------------------------- */
+  --fs-display-xl: 108px;  /* overlap % hero */
+  --fs-display-lg:  44px;  /* KPI numbers */
+  --fs-display-md:  36px;  /* prompt quote */
+  --fs-display-sm:  30px;  /* section titles */
+  --fs-display-xs:  22px;  /* inline headlines (turn prompt, tl-prompt) */
+
+  --fs-body-lg:   15px;
+  --fs-body:      14px;
+  --fs-body-sm:   13px;
+  --fs-body-xs:   12px;
+  --fs-caption:   11.5px;
+  --fs-eyebrow:   10.5px;  /* uppercase letter-spaced labels */
+
+  /* --- SPACING ------------------------------------------------ */
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-7:  32px;
+  --space-8:  40px;
+  --space-9:  56px;
+
+  /* --- MOTION ------------------------------------------------- */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast:   0.15s;
+  --dur:        0.25s;
+  --dur-slow:   0.4s;
+
+  /* --- LAYOUT CONSTANTS --------------------------------------- */
+  --popup-width:  580px;   /* browser extension popup */
+  --dash-max:    1360px;   /* full dashboard max width */
+}
+
+/* ============================================================
+   TYPOGRAPHY PRIMITIVES
+   Utility classes that apply the type tokens consistently.
+   ============================================================ */
+
+.t-display { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; }
+.t-mono    { font-family: var(--font-mono); font-feature-settings: "ss01","cv01"; }
+
+.t-eyebrow {
+  font-size: var(--fs-eyebrow);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.t-meta { font-size: var(--fs-body-xs); color: var(--ink-3); }
+
+.t-num {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.015em;
+}
