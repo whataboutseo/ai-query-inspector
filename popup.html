@@ -42,77 +42,89 @@
     </div>
 
     <section id="panelChatgpt" class="tab-panel" role="tabpanel" aria-labelledby="tabChatgpt" tabindex="0">
-      <section class="summary-grid">
-        <article class="card metric-card model-card">
-          <span class="metric-label">Model</span>
-          <div id="modelBadge" class="model-badge muted">Unknown</div>
-        </article>
-
-        <article class="card metric-card">
-          <span class="metric-label">Fan-outs</span>
-          <div id="fanoutCount" class="metric-value">0</div>
-        </article>
-
-        <article class="card metric-card">
-          <span class="metric-label">Cited sources</span>
-          <div id="sourceCount" class="metric-value">0</div>
-        </article>
-
-        <article class="card metric-card popup-hide" data-popup-secondary>
-          <span class="metric-label">Unique sites</span>
-          <div id="siteCount" class="metric-value">0</div>
-        </article>
-
-        <article class="card metric-card search-origin-card">
-          <div class="origin-line">
-            <span class="metric-label">Search origin</span>
-            <div id="searchOriginBadge" class="origin-badge muted">Unknown</div>
-          </div>
-          <div id="searchOriginConfidence" class="origin-confidence hidden"></div>
-          <div class="origin-line hidden" id="promptIntentRow">
-            <span class="metric-label">Prompt intent</span>
+      <!-- Consolidated "General information" card replaces four separate
+           metric cards (Model / Search origin / Prompt intent / UTM).
+           Pattern: label column on the left, value on the right, similar
+           to Backlinko's ChatGPT Query Fan-Out Tool. -->
+      <article class="card info-card">
+        <header class="info-head">
+          <h2><span class="info-head-icon" aria-hidden="true">📋</span>General information</h2>
+        </header>
+        <dl class="info-grid">
+          <dt>User prompt</dt>
+          <dd>
+            <span id="infoPromptText" class="info-value info-value--muted">No prompt detected yet.</span>
+          </dd>
+          <dt>Model</dt>
+          <dd>
+            <span id="modelBadge" class="model-badge muted">Unknown</span>
+          </dd>
+          <dt>Search origin</dt>
+          <dd>
+            <div class="info-value-stack">
+              <span id="searchOriginBadge" class="origin-badge muted">Unknown</span>
+              <span id="searchOriginConfidence" class="origin-confidence hidden"></span>
+            </div>
+          </dd>
+          <dt id="promptIntentLabel" class="hidden">Prompt intent</dt>
+          <dd class="hidden" id="promptIntentRow">
             <span id="promptIntentBadge" class="origin-badge muted" title="Heuristic classification of the latest user prompt.">—</span>
+          </dd>
+        </dl>
+
+        <!-- Horizontal stats strip — replaces the 3 loose metric cards
+             (Fan-outs / Cited sources / Unique sites). -->
+        <div class="stats-strip">
+          <div class="stat">
+            <span id="fanoutCount" class="stat-value">0</span>
+            <span class="stat-label">Fan-outs</span>
           </div>
-        </article>
+          <div class="stat">
+            <span id="sourceCount" class="stat-value">0</span>
+            <span class="stat-label">Cited sources</span>
+          </div>
+          <div class="stat">
+            <span id="siteCount" class="stat-value">0</span>
+            <span class="stat-label">Unique sites</span>
+          </div>
+          <div class="stat popup-hide" data-popup-secondary>
+            <span id="utmCoverage" class="stat-value stat-value--small">0 / 0</span>
+            <span class="stat-label">UTM coverage</span>
+          </div>
+        </div>
 
-        <article class="card metric-card popup-hide" data-popup-secondary>
-          <span class="metric-label">UTM coverage</span>
-          <div id="utmCoverage" class="metric-subvalue">0 / 0</div>
-        </article>
-
-        <article class="card metric-card intensity-card popup-hide" data-popup-secondary>
+        <!-- Retained for full-page dashboard only; popup hides it. -->
+        <div class="intensity-row popup-hide" data-popup-secondary>
           <span class="metric-label">Retrieval intensity</span>
-          <div id="retrievalIntensityValue" class="metric-subvalue">0 / 0 / 0</div>
-          <div id="retrievalIntensityMeta" class="metric-meta">Fan-outs / citations / sites</div>
-        </article>
-      </section>
+          <span id="retrievalIntensityValue" class="metric-subvalue">0 / 0 / 0</span>
+          <span id="retrievalIntensityMeta" class="metric-meta">Fan-outs / citations / sites</span>
+        </div>
+      </article>
 
       <section class="card utility-card search-capture-card collapsible-section">
         <div class="section-head compact">
-          <h2>Google handoff</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">🌐</span>Google handoff</h2>
           <button id="openGoogleBtn" class="ghost-btn" title="Opens a Google search for the latest detected user prompt, and the full-page inspector in the same window.">Open Google for prompt</button>
         </div>
       </section>
 
-      <section class="card">
+      <!-- Query-expansion card (multi-turn tree). The prompt box that
+           used to live here has moved into the General information card
+           above; this card now focuses on the per-turn structure. -->
+      <section class="card" id="queryExpansionCard">
         <details id="queryExpansionDetails" class="expansion-details" open>
-          <summary class="section-head summary-toggle" title="Click to collapse. Shows the latest prompt and the fan-out queries found in the saved conversation payload.">
-            <h2>Query expansion</h2>
+          <summary class="section-head summary-toggle" title="Click to collapse. Shows how the conversation's tool calls fanned out across turns.">
+            <h2><span class="info-head-icon" aria-hidden="true">🌲</span>Fan-out tree</h2>
           </summary>
-          <div class="expansion-block">
-            <div class="expansion-label">Latest user prompt</div>
-            <div id="latestPromptText" class="prompt-box">No prompt detected yet.</div>
-          </div>
-          <div class="expansion-block">
-            <div class="expansion-label">Detected fan-out path</div>
-            <div id="queryExpansionWrap" class="expansion-tree empty-state">No fan-out queries found in this conversation payload.</div>
-          </div>
+          <!-- Hidden, kept only for back-compat with renderQueryExpansion. -->
+          <div id="latestPromptText" class="hidden">No prompt detected yet.</div>
+          <div id="queryExpansionWrap" class="expansion-tree empty-state">No fan-out queries found in this conversation payload.</div>
         </details>
       </section>
 
       <section class="card">
         <div class="section-head">
-          <h2>Fan-out queries</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">🔍</span>Fan-out queries <span id="fanoutBadgeCount" class="count-badge">0</span></h2>
           <div class="section-actions">
             <button id="copyQueriesBtn" class="ghost-btn">Copy</button>
             <button id="exportChatgptCsvBtn" class="ghost-btn">Full CSV</button>
@@ -124,7 +136,7 @@
 
       <section class="card">
         <div class="section-head">
-          <h2>Citation strength</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">📊</span>Citation strength</h2>
           <span id="citationStrengthSummary" class="section-summary hidden"></span>
         </div>
         <div id="citationStrengthEmpty" class="empty-state">No cited domains found.</div>
@@ -133,7 +145,7 @@
 
       <section class="card">
         <div class="section-head">
-          <h2>Sites cited</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">🌐</span>Sites cited</h2>
           <div class="section-actions">
             <span id="sitesSummary" class="section-summary hidden"></span>
             <button id="copySitesBtn" class="ghost-btn">Copy</button>
@@ -146,7 +158,7 @@
 
       <section class="card collapsible-section">
         <div class="section-head">
-          <h2>Conversation turns</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">💬</span>Conversation turns</h2>
           <div class="section-actions">
             <span id="turnsSummary" class="section-summary hidden"></span>
           </div>
@@ -157,7 +169,7 @@
 
       <section class="card">
         <div class="section-head">
-          <h2>Captured sources</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">📄</span>Captured sources</h2>
           <div class="section-actions">
             <span id="sourcesSummary" class="section-summary hidden"></span>
             <button id="copySourcesBtn" class="ghost-btn">Copy</button>
@@ -198,7 +210,7 @@
 
       <section class="card utility-card search-capture-card">
         <div class="section-head compact">
-          <h2>Search capture</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">🔎</span>Search capture</h2>
           <button id="openGoogleManualBtn" class="ghost-btn">Open manual search</button>
         </div>
         <p class="small-note">Mode A reads the currently open Google, Bing, or DuckDuckGo results page on your device. It does not call a search API or send data anywhere.</p>
@@ -206,7 +218,7 @@
 
       <section class="card serp-features-card collapsible-section">
         <div class="section-head">
-          <h2>SERP features</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">✨</span>SERP features</h2>
           <span id="googleFeaturesSummary" class="section-summary hidden"></span>
         </div>
         <div id="googleFeaturesEmpty" class="empty-state">No SERP features detected yet.</div>
@@ -215,7 +227,7 @@
 
       <section class="card sites-found-card collapsible-section">
         <div class="section-head">
-          <h2>Sites found</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">🌐</span>Sites found</h2>
           <div class="section-actions">
             <span id="googleSitesSummary" class="section-summary hidden"></span>
           </div>
@@ -226,7 +238,7 @@
 
       <section class="card organic-results-card collapsible-section">
         <div class="section-head">
-          <h2>Search results</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">📑</span>Search results</h2>
           <div class="section-actions">
             <button id="copyGoogleBtn" class="ghost-btn">Copy</button>
             <button id="exportGoogleCsvBtn" class="ghost-btn">SERP snapshot CSV</button>
@@ -291,7 +303,7 @@
 
       <section id="aioCrossrefCard" class="card aio-card hidden">
         <div class="section-head compact">
-          <h2>AI Overview ∩ ChatGPT citations</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">🤝</span>AI Overview ∩ ChatGPT citations</h2>
           <span id="aioCrossrefSummary" class="section-summary"></span>
         </div>
         <p class="small-note">Domains Google's AI Overview cited for this query, marked <strong>✓</strong> when ChatGPT also cited the same registered domain.</p>
@@ -300,7 +312,7 @@
 
       <section class="card comparison-card collapsible-section">
         <div class="section-head">
-          <h2>Rank comparison</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">📈</span>Rank comparison</h2>
           <div class="section-actions">
             <button id="copyCombinedBtn" class="ghost-btn">Copy</button>
             <button id="exportCombinedCsvBtn" class="ghost-btn">Full CSV</button>
@@ -313,7 +325,7 @@
 
       <section class="card missed-card collapsible-section">
         <div class="section-head">
-          <h2>Missed by ChatGPT</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">🎯</span>Missed by ChatGPT</h2>
           <span id="missedOpportunitiesSummary" class="section-summary hidden"></span>
         </div>
         <div id="missedOpportunitiesEmpty" class="empty-state">No Google-only domains detected yet.</div>
@@ -343,7 +355,7 @@
 
       <section class="card utility-card search-capture-card history-info-card collapsible-section">
         <div class="section-head compact">
-          <h2>History</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">🕓</span>History</h2>
           <div class="section-actions">
             <button id="exportHistoryCsvBtn" class="ghost-btn">History CSV</button>
             <button id="clearHistoryBtn" class="ghost-btn danger-ghost">Clear</button>
@@ -354,7 +366,7 @@
 
       <section class="card">
         <div class="section-head">
-          <h2>Saved comparisons</h2>
+          <h2><span class="info-head-icon" aria-hidden="true">📁</span>Saved comparisons</h2>
           <span id="historySummary" class="section-summary hidden"></span>
         </div>
         <div id="historyEmpty" class="empty-state">No saved comparisons yet. Capture a ChatGPT conversation and a search results page to create one.</div>
@@ -364,7 +376,7 @@
 
     <section class="card privacy-card">
       <div class="section-head compact">
-        <h2>Privacy & safety</h2>
+        <h2><span class="info-head-icon" aria-hidden="true">🔒</span>Privacy & safety</h2>
       </div>
 
       <div class="settings-row">

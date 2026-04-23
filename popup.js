@@ -180,7 +180,13 @@ function maybeSetFullPageClass() {
 function applyTheme(mode = 'dark') {
   themeMode = mode === 'light' ? 'light' : 'dark';
   document.body.classList.toggle('light-mode', themeMode === 'light');
-  if (els.themeToggleBtn) els.themeToggleBtn.textContent = themeMode === 'light' ? 'Dark mode' : 'Light mode';
+  // Theme button stays an icon — update the tooltip/aria-label only, so
+  // the SVG inside isn't wiped out by a textContent write.
+  if (els.themeToggleBtn) {
+    const next = themeMode === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+    els.themeToggleBtn.title = next;
+    els.themeToggleBtn.setAttribute('aria-label', next);
+  }
 }
 
 async function toggleThemeMode() {
@@ -576,20 +582,18 @@ function renderQueryExpansion(data) {
   els.queryExpansionWrap.innerHTML = '';
 
   const queries = data?.queries || [];
-  if (!queries.length) {
-    els.queryExpansionWrap.textContent = 'No fan-out queries found in this conversation payload.';
-    els.queryExpansionWrap.className = 'expansion-tree empty-state';
-    return;
-  }
-
-  els.queryExpansionWrap.className = 'expansion-tree';
-
-  // Stage 3.2: multi-turn conversations render as a tree of turns, each
-  // turn showing prompt -> fan-out queries -> domain chips. A
-  // conversation with only one turn (or where turn metadata is missing)
-  // falls back to the previous flat prompt-plus-queries layout.
   const turns = Array.isArray(data?.conversationTurns) ? data.conversationTurns : [];
   const hasRichTurns = turns.length > 1 && turns.some((t) => (t.queries || []).length > 0);
+
+  // Hide the whole Fan-out tree card in single-turn mode — the prompt is
+  // already in the General information card and the queries are already
+  // listed in the Fan-out queries card below, so a tree view of one turn
+  // would just be visual noise.
+  const card = document.getElementById('queryExpansionCard');
+  if (card) card.classList.toggle('hidden', !hasRichTurns);
+  if (!hasRichTurns) return;
+
+  els.queryExpansionWrap.className = 'expansion-tree';
 
   const tree = document.createElement('div');
   tree.className = 'expansion-tree-wrap';
@@ -620,62 +624,43 @@ function renderQueryExpansion(data) {
     container.appendChild(list);
   };
 
-  if (hasRichTurns) {
-    turns.forEach((turn) => {
-      const turnNode = document.createElement('div');
-      turnNode.className = 'expansion-turn';
+  // Multi-turn: one expansion-turn block per turn, each with a pill
+  // header, prompt, and numbered fan-out query list.
+  turns.forEach((turn) => {
+    const turnNode = document.createElement('div');
+    turnNode.className = 'expansion-turn';
 
-      const turnHead = document.createElement('div');
-      turnHead.className = 'expansion-turn-head';
-      const turnPill = document.createElement('span');
-      turnPill.className = 'expansion-turn-pill';
-      turnPill.textContent = `Turn ${turn.index}`;
-      const turnMeta = document.createElement('span');
-      turnMeta.className = 'expansion-turn-meta';
-      turnMeta.textContent = `${turn.queryCount || (turn.queries || []).length} queries · ${turn.citedSourceCount || 0} cited · ${turn.uniqueSiteCount || 0} sites`;
-      turnHead.appendChild(turnPill);
-      turnHead.appendChild(turnMeta);
-      turnNode.appendChild(turnHead);
+    const turnHead = document.createElement('div');
+    turnHead.className = 'expansion-turn-head';
+    const turnPill = document.createElement('span');
+    turnPill.className = 'expansion-turn-pill';
+    turnPill.textContent = `Turn ${turn.index}`;
+    const turnMeta = document.createElement('span');
+    turnMeta.className = 'expansion-turn-meta';
+    turnMeta.textContent = `${turn.queryCount || (turn.queries || []).length} queries · ${turn.citedSourceCount || 0} cited · ${turn.uniqueSiteCount || 0} sites`;
+    turnHead.appendChild(turnPill);
+    turnHead.appendChild(turnMeta);
+    turnNode.appendChild(turnHead);
 
-      if (turn.prompt) {
-        const promptLabel = document.createElement('div');
-        promptLabel.className = 'expansion-node-label';
-        promptLabel.textContent = 'Prompt';
-        const promptBox = document.createElement('div');
-        promptBox.className = 'expansion-root-title';
-        promptBox.textContent = turn.prompt;
-        turnNode.appendChild(promptLabel);
-        turnNode.appendChild(promptBox);
-      }
+    if (turn.prompt) {
+      const promptLabel = document.createElement('div');
+      promptLabel.className = 'expansion-node-label';
+      promptLabel.textContent = 'Prompt';
+      const promptBox = document.createElement('div');
+      promptBox.className = 'expansion-root-title';
+      promptBox.textContent = turn.prompt;
+      turnNode.appendChild(promptLabel);
+      turnNode.appendChild(promptBox);
+    }
 
-      const fanoutLabel = document.createElement('div');
-      fanoutLabel.className = 'expansion-node-label';
-      fanoutLabel.textContent = (turn.queries || []).length ? 'Fan-out queries' : 'No fan-out detected for this turn';
-      turnNode.appendChild(fanoutLabel);
-
-      if ((turn.queries || []).length) appendQueryList(turnNode, turn.queries);
-      tree.appendChild(turnNode);
-    });
-  } else {
-    // Single-turn fallback (original layout, preserved for small
-    // conversations where a tree would just be visual noise).
-    const node = document.createElement('div');
-    node.className = 'expansion-node';
-    const promptLabel = document.createElement('div');
-    promptLabel.className = 'expansion-node-label';
-    promptLabel.textContent = 'Prompt';
-    const promptBox = document.createElement('div');
-    promptBox.className = 'expansion-root-title';
-    promptBox.textContent = prompt;
     const fanoutLabel = document.createElement('div');
     fanoutLabel.className = 'expansion-node-label';
-    fanoutLabel.textContent = 'Fan-out queries';
-    node.appendChild(promptLabel);
-    node.appendChild(promptBox);
-    node.appendChild(fanoutLabel);
-    appendQueryList(node, queries);
-    tree.appendChild(node);
-  }
+    fanoutLabel.textContent = (turn.queries || []).length ? 'Fan-out queries' : 'No fan-out detected for this turn';
+    turnNode.appendChild(fanoutLabel);
+
+    if ((turn.queries || []).length) appendQueryList(turnNode, turn.queries);
+    tree.appendChild(turnNode);
+  });
 
   els.queryExpansionWrap.appendChild(tree);
 }
@@ -728,6 +713,20 @@ function renderCitationStrength(data) {
 //    payload) or section 9 (inspection results).
 // ============================================================================
 function renderChatgpt(data) {
+  // Info-card: user prompt row (moved here from the old Query expansion
+  // card, which was duplicating the same text).
+  const infoPrompt = document.getElementById('infoPromptText');
+  if (infoPrompt) {
+    const p = data?.latestUserPrompt || '';
+    if (p) {
+      infoPrompt.textContent = p;
+      infoPrompt.classList.remove('info-value--muted');
+    } else {
+      infoPrompt.textContent = 'No prompt detected yet.';
+      infoPrompt.classList.add('info-value--muted');
+    }
+  }
+
   els.modelBadge.textContent = data?.model || 'Unknown';
   els.modelBadge.classList.toggle('muted', !data?.model);
   els.fanoutCount.textContent = String(data?.queries?.length || 0);
@@ -737,27 +736,32 @@ function renderChatgpt(data) {
   els.retrievalIntensityValue.textContent = `${data?.queries?.length || 0} / ${data?.citedSources || 0} / ${data?.uniqueDomains?.length || 0}`;
   els.retrievalIntensityMeta.textContent = 'Fan-outs / citations / sites';
 
+  // Fan-out count badge in the "Fan-out queries" section title.
+  const fanoutBadge = document.getElementById('fanoutBadgeCount');
+  if (fanoutBadge) fanoutBadge.textContent = String(data?.queries?.length || 0);
+
   const origin = data?.searchOrigin || { label: 'Unknown', confidence: '', tone: 'muted' };
   els.searchOriginBadge.textContent = origin.label;
   els.searchOriginBadge.className = `origin-badge ${origin.tone || 'muted'}`;
   els.searchOriginConfidence.textContent = origin.confidence ? `${origin.confidence} confidence` : '';
   els.searchOriginConfidence.classList.toggle('hidden', !origin.confidence);
 
-  // Prompt intent classification (stage 3.3). Keyword-based, fast.
-  // When no prompt has been captured yet, hide the whole chip — showing
-  // a dash placeholder in an otherwise empty card looked like a glitch.
+  // Prompt intent classification (stage 3.3). Show the dt label and dd
+  // value together; hide both when no prompt has been captured yet so
+  // the info-grid doesn't render a dangling label.
   if (els.promptIntentBadge) {
     const intent = self.AIQIShared.classifyPromptIntent(data?.latestUserPrompt || '');
+    const intentLabel = document.getElementById('promptIntentLabel');
+    const intentRow = document.getElementById('promptIntentRow');
     if (intent) {
       els.promptIntentBadge.textContent = intent.label;
       els.promptIntentBadge.className = `origin-badge ${intent.tone || 'muted'}`;
       els.promptIntentBadge.title = intent.description;
-      els.promptIntentBadge.classList.remove('hidden');
-      const row = els.promptIntentBadge.closest('.origin-line');
-      if (row) row.classList.remove('hidden');
+      if (intentLabel) intentLabel.classList.remove('hidden');
+      if (intentRow) intentRow.classList.remove('hidden');
     } else {
-      const row = els.promptIntentBadge.closest('.origin-line');
-      if (row) row.classList.add('hidden');
+      if (intentLabel) intentLabel.classList.add('hidden');
+      if (intentRow) intentRow.classList.add('hidden');
     }
   }
 
