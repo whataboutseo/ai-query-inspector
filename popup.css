@@ -2038,3 +2038,18 @@ body.light-mode .expansion-domain-chip  {
   border-color: rgba(13, 28, 74, 0.18) !important;
   color: #3d4e86 !important;
 }
+
+/* History sparkline (stage 3.5). Sits to the right of the overlap-%
+   chip; SVG inlines --accent so it picks up light-mode colours. */
+.history-overlap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.history-spark {
+  display: block;
+  opacity: 0.85;
+}
+body.light-mode .history-spark line[stroke-dasharray] {
+  stroke: rgba(13, 28, 74, 0.18) !important;
+}

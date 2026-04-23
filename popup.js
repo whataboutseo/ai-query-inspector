@@ -1214,6 +1214,64 @@ function persistHistorySnapshot() {
   saveLocalState().catch(() => {});
 }
 
+/**
+ * Build a tiny inline-SVG sparkline of overlap scores over time for a
+ * given history query. Returns an <svg> element (or null if there are
+ * fewer than 2 data points). Used by renderHistory() per card to give
+ * users a glance view of how ChatGPT's citations track search over
+ * repeated captures. Stage 3.5.
+ */
+function buildOverlapSparkline(seriesAsc) {
+  if (!Array.isArray(seriesAsc) || seriesAsc.length < 2) return null;
+  const W = 140;
+  const H = 36;
+  const P = 3; // padding so dots at y=0/y=100 don't clip the frame
+  const xmlns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(xmlns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', String(W));
+  svg.setAttribute('height', String(H));
+  svg.setAttribute('class', 'history-spark');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', `Overlap trend: ${seriesAsc.map((v) => v + '%').join(' -> ')}`);
+
+  // Baseline at 50% to give context to the trend.
+  const base = document.createElementNS(xmlns, 'line');
+  base.setAttribute('x1', '0'); base.setAttribute('x2', String(W));
+  const baseY = P + (H - 2 * P) * (1 - 0.5);
+  base.setAttribute('y1', String(baseY)); base.setAttribute('y2', String(baseY));
+  base.setAttribute('stroke', 'rgba(255,255,255,0.1)');
+  base.setAttribute('stroke-dasharray', '2 3');
+  svg.appendChild(base);
+
+  const points = seriesAsc.map((v, i) => {
+    const x = seriesAsc.length === 1 ? W / 2 : (i / (seriesAsc.length - 1)) * W;
+    const clamped = Math.min(100, Math.max(0, Number(v) || 0));
+    const y = P + (H - 2 * P) * (1 - clamped / 100);
+    return { x, y, v: clamped };
+  });
+
+  const line = document.createElementNS(xmlns, 'polyline');
+  line.setAttribute('points', points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '));
+  line.setAttribute('fill', 'none');
+  line.setAttribute('stroke', 'var(--accent, #78a8ff)');
+  line.setAttribute('stroke-width', '1.5');
+  line.setAttribute('stroke-linecap', 'round');
+  line.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(line);
+
+  // Highlight the latest point.
+  const last = points[points.length - 1];
+  const dot = document.createElementNS(xmlns, 'circle');
+  dot.setAttribute('cx', last.x.toFixed(1));
+  dot.setAttribute('cy', last.y.toFixed(1));
+  dot.setAttribute('r', '2.6');
+  dot.setAttribute('fill', 'var(--accent, #78a8ff)');
+  svg.appendChild(dot);
+
+  return svg;
+}
+
 function renderHistory() {
   const history = comparisonHistory || [];
   els.historyRunCount.textContent = String(history.length);
@@ -1225,6 +1283,20 @@ function renderHistory() {
   els.historyWrap.classList.toggle('hidden', history.length === 0);
   els.historySummary.classList.toggle('hidden', history.length === 0);
   els.historySummary.textContent = history.length ? `${history.length} saved local comparison${history.length === 1 ? '' : 's'}` : '';
+
+  // Pre-bucket history by query so each card can render a sparkline of
+  // overlap-over-time for its own query.
+  const byQuery = new Map();
+  history.forEach((h) => {
+    const key = (h.query || '').toLowerCase();
+    if (!byQuery.has(key)) byQuery.set(key, []);
+    byQuery.get(key).push(h);
+  });
+  // Sort each bucket ascending by savedAt so polyline reads left-to-right
+  // as "oldest -> newest".
+  for (const list of byQuery.values()) {
+    list.sort((a, b) => String(a.savedAt || '').localeCompare(String(b.savedAt || '')));
+  }
 
   history.forEach((item) => {
     const card = document.createElement('div');
@@ -1242,11 +1314,22 @@ function renderHistory() {
     titleWrap.appendChild(title);
     titleWrap.appendChild(meta);
 
+    const overlapWrap = document.createElement('div');
+    overlapWrap.className = 'history-overlap';
     const overlap = document.createElement('span');
     overlap.className = 'site-count';
     overlap.textContent = `${item.overlapScore}% overlap`;
+    overlapWrap.appendChild(overlap);
+
+    // Stage 3.5: sparkline of overlap-over-time for this query (if we
+    // have at least 2 saved captures of it). Renders after the number
+    // so the eye naturally reads left-to-right: "X% overlap [spark]".
+    const series = (byQuery.get((item.query || '').toLowerCase()) || []).map((h) => Number(h.overlapScore) || 0);
+    const spark = buildOverlapSparkline(series);
+    if (spark) overlapWrap.appendChild(spark);
+
     top.appendChild(titleWrap);
-    top.appendChild(overlap);
+    top.appendChild(overlapWrap);
 
     const badges = document.createElement('div');
     badges.className = 'history-badges';
