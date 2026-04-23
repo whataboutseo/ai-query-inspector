@@ -151,30 +151,123 @@
     }).sort((a, b) => b.citedCount - a.citedCount || b.count - a.count || (a.domain || '').localeCompare(b.domain || ''));
   }
 
+  /**
+   * Extract fan-out queries from a single tool/assistant message payload.
+   *
+   * ChatGPT has shipped several payload shapes for its web-search tool
+   * calls over time. We try each in priority order; first non-empty
+   * result wins. Callers pass in:
+   *   - `text`  — the content.text string (JSON blob in most cases)
+   *   - `contentType` — e.g. 'code', 'search', 'tether_browsing_code',
+   *                     'tether_browsing_display'
+   */
+  const QUERY_REGEXES = [
+    // search("foo")  /  search('foo')
+    /\bsearch\s*\(\s*["'](.+?)["']\s*\)/g,
+    // search_web("foo")  /  web.search("foo")  /  browser.search("foo")
+    /\b(?:search_web|web\.search|browser\.search|web_search)\s*\(\s*["'](.+?)["']\s*\)/g,
+    // browse("https://...")  /  open_url("https://...")  — treat URL as the query literal
+    /\b(?:browse|open_url|click)\s*\(\s*["'](.+?)["']\s*\)/g,
+  ];
+
+  function parseFanoutQueries(text, contentType = '') {
+    const out = [];
+    if (typeof text !== 'string' || !text) return out;
+
+    const pushQuery = (q, domains) => {
+      const clean = sanitizeString(q, 500);
+      if (!clean) return;
+      const doms = Array.isArray(domains)
+        ? domains.map(normalizeDomain).filter(Boolean).slice(0, 20)
+        : [];
+      out.push({ q: clean, domains: doms });
+    };
+
+    // Shape 1 — JSON blob. The current (2024-present) shape is
+    //   {"search_query": [{"q": "...", "domains": [...]}, ...]}
+    // but older/alt shapes exist:
+    //   {"queries": ["..."]}
+    //   {"q": "..."}  (single)
+    //   {"prompt": "...", "queries": [{"q":"..."}]}
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === 'object') {
+        if (Array.isArray(parsed.search_query)) {
+          parsed.search_query.forEach((sq) => {
+            if (sq && typeof sq === 'object') pushQuery(sq.q, sq.domains || []);
+          });
+        }
+        if (Array.isArray(parsed.queries)) {
+          parsed.queries.forEach((sq) => {
+            if (typeof sq === 'string') pushQuery(sq, []);
+            else if (sq && typeof sq === 'object') pushQuery(sq.q || sq.query || sq.text, sq.domains || []);
+          });
+        }
+        if (typeof parsed.q === 'string') pushQuery(parsed.q, parsed.domains || []);
+        if (typeof parsed.query === 'string' && !out.length) pushQuery(parsed.query, []);
+        if (out.length) return out;
+      }
+    } catch {
+      // Not JSON — fall through to regex extraction.
+    }
+
+    // Shape 2 — a call expression inside a code block. Covers the
+    // legacy browsing plugin (`tether_browsing_code`) and any
+    // free-form assistant message that mentions a search invocation.
+    // Use matchAll so we catch multiple calls within the same block
+    // (ChatGPT sometimes emits 3–5 search() calls in one code cell).
+    for (const regex of QUERY_REGEXES) {
+      const matches = text.matchAll(new RegExp(regex.source, regex.flags));
+      for (const m of matches) {
+        if (m[1]) pushQuery(m[1], []);
+      }
+    }
+
+    // Shape 3 — bare URL list inside a `tether_browsing_display`
+    // block. Users occasionally want to see which URLs ChatGPT opened;
+    // treat each as a domain-scoped query for aggregation purposes.
+    if (!out.length && /tether_browsing/i.test(contentType || '')) {
+      const urlMatches = text.match(/https?:\/\/[^\s"'<>]+/g) || [];
+      urlMatches.slice(0, 20).forEach((url) => pushQuery(url, []));
+    }
+
+    // Dedupe by (q, domains) — the generic `search(...)` regex will
+    // double-match specialised forms like `web.search(...)` because
+    // both patterns are attempted. Callers expect one entry per unique
+    // query string.
+    if (out.length > 1) {
+      const seen = new Map();
+      for (const item of out) {
+        const key = `${item.q}||${(item.domains || []).join(',')}`;
+        if (!seen.has(key)) seen.set(key, item);
+      }
+      return [...seen.values()];
+    }
+    return out;
+  }
+
+  /**
+   * Is this message a fan-out carrier? We look at role, recipient, and
+   * content_type because ChatGPT has used different fields to mark tool
+   * calls across versions:
+   *   - role: 'tool' (newer)  /  'assistant' with recipient: 'web'
+   *   - content_type: 'code', 'search', 'tether_browsing_*'
+   */
+  function isFanoutMessage(message) {
+    if (!message || typeof message !== 'object') return false;
+    const role = message.author?.role;
+    const recipient = (message.recipient || message.author?.name || '').toLowerCase();
+    const ct = (message.content?.content_type || '').toLowerCase();
+    if (role === 'tool') return true;
+    if (recipient === 'web' || recipient === 'browser' || /browsing|web_search|web_browser/.test(recipient)) return true;
+    if (ct === 'code' || ct === 'search' || ct.startsWith('tether_browsing')) return true;
+    return false;
+  }
+
   function buildConversationTurns(raw) {
     const orderedNodes = sortConversationPath(raw);
     const turns = [];
     let currentTurn = null;
-
-    const parseQueriesFromText = (text) => {
-      const found = [];
-      if (!text) return found;
-      try {
-        const parsed = JSON.parse(text);
-        if (parsed && Array.isArray(parsed.search_query)) {
-          parsed.search_query.forEach((sq) => {
-            if (!sq || typeof sq !== 'object') return;
-            const q = sanitizeString(sq.q, 500);
-            if (!q) return;
-            found.push({ q, domains: Array.isArray(sq.domains) ? sq.domains.map(normalizeDomain).filter(Boolean).slice(0, 20) : [] });
-          });
-        }
-      } catch {
-        const match = text.match(/search\("([^"]+)"\)/);
-        if (match) found.push({ q: sanitizeString(match[1], 500), domains: [] });
-      }
-      return found;
-    };
 
     orderedNodes.forEach((node) => {
       const message = node?.message;
@@ -199,10 +292,15 @@
         }
         return;
       }
-      if (role !== 'assistant' || !currentTurn) return;
+      // Accept any non-user message that could carry a fan-out or source
+      // (assistant replies, tool invocations, browsing display blocks).
+      // The `isFanoutMessage` check widens the net beyond role=assistant.
+      if (role === 'user' || !currentTurn) return;
+      if (role !== 'assistant' && !isFanoutMessage(message)) return;
 
       const text = typeof content.text === 'string' ? content.text : '';
-      parseQueriesFromText(text).forEach((q) => currentTurn.queries.push(q));
+      const ct = content.content_type || '';
+      parseFanoutQueries(text, ct).forEach((q) => currentTurn.queries.push(q));
 
       const localItems = [];
       scanForSourceItems(message.metadata || {}, localItems);
@@ -306,25 +404,21 @@
         if (candidatePrompt) latestUserPrompt = candidatePrompt;
       }
 
-      if (content?.content_type === 'code' && text) {
-        try {
-          const parsed = JSON.parse(text);
-          if (parsed && Array.isArray(parsed.search_query)) {
-            hiddenLikely = false;
-            parsed.search_query.slice(0, 100).forEach((sq) => {
-              if (sq && typeof sq === 'object') tryAddQuery(sq.q, sq.domains || []);
-            });
-          }
-        } catch {
-          const matchSearch = text.match(/search\("([^"]+)"\)/);
-          if (matchSearch) {
-            hiddenLikely = false;
-            tryAddQuery(matchSearch[1], []);
-          }
+      // Fan-out detection — broadened in stage 2.4 to cover tool-role
+      // messages, alternate JSON shapes, and multiple call-expression
+      // formats. See parseFanoutQueries for the priority order.
+      if (text && (content?.content_type === 'code' || isFanoutMessage(message))) {
+        const parsed = parseFanoutQueries(text, content?.content_type || '');
+        if (parsed.length) {
+          hiddenLikely = false;
+          parsed.slice(0, 100).forEach((sq) => tryAddQuery(sq.q, sq.domains || []));
         }
       }
 
-      if (message.author?.role === 'assistant') {
+      // Collect source items from assistant *and* tool messages. Tool
+      // messages occasionally carry the raw search results in their
+      // metadata before the assistant turns them into citations.
+      if (message.author?.role === 'assistant' || isFanoutMessage(message)) {
         scanForSourceItems(message.metadata || {}, sourceItems);
         scanForSourceItems(message.content || {}, sourceItems);
       }
@@ -582,6 +676,8 @@
     aggregateSourceItems,
     buildConversationTurns,
     parseChatgptPayload,
+    parseFanoutQueries,
+    isFanoutMessage,
     getSettings,
     setSettings,
     DEFAULT_SETTINGS,
