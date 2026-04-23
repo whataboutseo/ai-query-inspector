@@ -200,28 +200,46 @@
       <div id="statusText">Open a ChatGPT conversation (auto-captured) or a Google/Bing/DuckDuckGo results page, then click Refresh to capture it locally.</div>
     </section>
 
-    <!-- Stage 4.4.1 shared capture pickers. Lives above the tab panels
-         so it stays visible across ChatGPT / Google / Combined /
-         History. Each picker hides itself when its archive is empty. -->
+    <!-- Stage 5.9 capture pickers — promoted from a quiet dropdown
+         into a prominent horizontal bar. Icon tile + eyebrow + serif
+         "currently showing" label + mono timestamp chip + switcher
+         <select> + optional "Latest" pin. Hidden when its archive is
+         empty. Shared across all tabs inside .dash-content. -->
     <section class="capture-picker-row" id="capturePickerRow">
-      <section class="card capture-picker-card" id="chatgptPickerCard" hidden>
-        <div class="section-head compact picker-head">
-          <h2><span class="info-head-icon" aria-hidden="true">🕑</span>ChatGPT capture</h2>
-          <div class="section-actions picker-actions">
-            <select id="chatgptPickerSelect" class="picker-select" aria-label="Select a captured ChatGPT conversation"></select>
+      <div class="capture-picker" id="chatgptPickerCard" hidden>
+        <span class="capture-picker__icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="6.5" stroke="currentColor" stroke-width="1.6"/><path d="M10 6v4l2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <div class="capture-picker__body">
+          <span class="t-eyebrow">VIEWING CHATGPT CAPTURE</span>
+          <div class="capture-picker__row">
+            <span class="capture-picker__current" id="chatgptPickerCurrent">—</span>
+            <span class="capture-picker__chip mono" id="chatgptPickerStamp">—</span>
           </div>
+          <p class="capture-picker__note" id="chatgptPickerNote" hidden></p>
         </div>
-        <p class="small-note picker-note" id="chatgptPickerNote" hidden></p>
-      </section>
-      <section class="card capture-picker-card" id="googlePickerCard" hidden>
-        <div class="section-head compact picker-head">
-          <h2><span class="info-head-icon" aria-hidden="true">🕑</span>Google capture</h2>
-          <div class="section-actions picker-actions">
-            <select id="googlePickerSelect" class="picker-select" aria-label="Select a captured SERP"></select>
+        <label class="capture-picker__switch">
+          <span class="visually-hidden">Switch ChatGPT capture</span>
+          <select id="chatgptPickerSelect" class="picker-select" aria-label="Select a captured ChatGPT conversation"></select>
+        </label>
+      </div>
+      <div class="capture-picker" id="googlePickerCard" hidden>
+        <span class="capture-picker__icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.6"/><path d="m13.5 13.5 3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </span>
+        <div class="capture-picker__body">
+          <span class="t-eyebrow">VIEWING GOOGLE CAPTURE</span>
+          <div class="capture-picker__row">
+            <span class="capture-picker__current" id="googlePickerCurrent">—</span>
+            <span class="capture-picker__chip mono" id="googlePickerStamp">—</span>
           </div>
+          <p class="capture-picker__note" id="googlePickerNote" hidden></p>
         </div>
-        <p class="small-note picker-note" id="googlePickerNote" hidden></p>
-      </section>
+        <label class="capture-picker__switch">
+          <span class="visually-hidden">Switch Google capture</span>
+          <select id="googlePickerSelect" class="picker-select" aria-label="Select a captured SERP"></select>
+        </label>
+      </div>
     </section>
 
     <section id="panelChatgpt" class="tab-panel" role="tabpanel" aria-labelledby="tabChatgpt" tabindex="0">

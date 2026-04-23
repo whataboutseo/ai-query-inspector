@@ -785,6 +785,37 @@ function findArchiveEntryById(archive, id) {
   return archive.find((entry) => entry?.id === id) || null;
 }
 
+// Stage 5.9: paint the prominent picker bar with the currently-shown
+// capture's title + mono timestamp chip. Short-circuits renderChatgpt
+// being about to overwrite the same surface — the picker needs its own
+// always-up-to-date reflection of the selection.
+function paintChatgptPickerCurrent(entry, isLatest) {
+  const currentEl = document.getElementById('chatgptPickerCurrent');
+  const stampEl = document.getElementById('chatgptPickerStamp');
+  if (currentEl) {
+    const label = sanitizeString(entry?.title || entry?.latestUserPrompt || entry?.conversationId || 'Untitled conversation', 120);
+    currentEl.textContent = label;
+  }
+  if (stampEl) {
+    const stamp = formatPickerTimestamp(entry?.capturedAt);
+    stampEl.textContent = isLatest ? `${stamp} · LATEST` : stamp;
+  }
+}
+
+function paintGooglePickerCurrent(entry, isLatest) {
+  const currentEl = document.getElementById('googlePickerCurrent');
+  const stampEl = document.getElementById('googlePickerStamp');
+  if (currentEl) {
+    const engine = entry?.engineLabel || titleCaseEngine(entry?.engine || '');
+    const query = sanitizeString(entry?.query || 'No query', 120);
+    currentEl.textContent = engine ? `${engine}: ${query}` : query;
+  }
+  if (stampEl) {
+    const stamp = formatPickerTimestamp(entry?.capturedAt);
+    stampEl.textContent = isLatest ? `${stamp} · LATEST` : stamp;
+  }
+}
+
 function renderChatgptPicker() {
   const select = els.chatgptPickerSelect;
   const card = els.chatgptPickerCard;
@@ -796,14 +827,18 @@ function renderChatgptPicker() {
   card.hidden = false;
   const currentId = userPickedChatgptId || lastChatgptData?.id || chatgptArchive[0]?.id || '';
   select.innerHTML = '';
+  let currentEntry = null;
   chatgptArchive.forEach((entry, idx) => {
     if (!entry?.id) return;
     const opt = document.createElement('option');
     opt.value = entry.id;
     opt.textContent = buildChatgptPickerLabel(entry, idx === 0);
-    if (entry.id === currentId) opt.selected = true;
+    if (entry.id === currentId) { opt.selected = true; currentEntry = entry; }
     select.appendChild(opt);
   });
+  const activeEntry = currentEntry || chatgptArchive[0];
+  const isLatest = chatgptArchive[0]?.id === activeEntry?.id;
+  paintChatgptPickerCurrent(activeEntry, isLatest);
   updateChatgptPickerNote();
 }
 
@@ -818,14 +853,18 @@ function renderGooglePicker() {
   card.hidden = false;
   const currentId = userPickedGoogleId || lastGoogleData?.id || googleArchive[0]?.id || '';
   select.innerHTML = '';
+  let currentEntry = null;
   googleArchive.forEach((entry, idx) => {
     if (!entry?.id) return;
     const opt = document.createElement('option');
     opt.value = entry.id;
     opt.textContent = buildGooglePickerLabel(entry, idx === 0);
-    if (entry.id === currentId) opt.selected = true;
+    if (entry.id === currentId) { opt.selected = true; currentEntry = entry; }
     select.appendChild(opt);
   });
+  const activeEntry = currentEntry || googleArchive[0];
+  const isLatest = googleArchive[0]?.id === activeEntry?.id;
+  paintGooglePickerCurrent(activeEntry, isLatest);
   updateGooglePickerNote();
 }
 
@@ -863,6 +902,8 @@ function handleChatgptPickerChange(selectedId) {
   renderChatgpt(lastChatgptData);
   renderCombined();
   renderHistory();
+  populatePopup();
+  paintChatgptPickerCurrent(entry, isLatest);
   updateChatgptPickerNote();
 }
 
@@ -876,6 +917,8 @@ function handleGooglePickerChange(selectedId) {
   renderGoogle(lastGoogleData);
   renderCombined();
   renderHistory();
+  populatePopup();
+  paintGooglePickerCurrent(entry, isLatest);
   updateGooglePickerNote();
 }
 

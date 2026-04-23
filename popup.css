@@ -29,16 +29,20 @@ html[data-theme="dark"] {
 html, body {
   margin: 0;
   padding: 0;
-  /* Popup context: design-system spec is 580px (--popup-width). */
-  width: var(--popup-width, 580px);
-  min-height: 720px;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
 }
+/* Popup context: design-system spec is 580px (--popup-width). Only
+   constrain the body (Chrome sizes the extension popup from it);
+   leave html unconstrained so body can grow to viewport in full-page. */
+body {
+  width: var(--popup-width, 580px);
+  min-height: 720px;
+}
 
-/* Full-page context — un-clamp the width and center the dashboard. */
-body.full-page, body.full-page html { width: 100%; }
+/* Full-page context — un-clamp body to viewport and center the dashboard. */
+body.full-page { width: 100%; max-width: 100%; }
 body.full-page .dashboard { max-width: var(--dash-max); margin: 20px auto; }
 
 /* Stage 5.7: swap shell by context.
@@ -333,60 +337,112 @@ body.light-mode .count-badge {
   line-height: 1.3;
 }
 .ghost-btn:hover { background: rgba(255,255,255,0.1); }
+/* Stage 5.9 capture-picker — promoted from a quiet flat dropdown into
+   a prominent horizontal bar. Icon tile + eyebrow + serif "currently
+   showing" label + mono timestamp chip + switcher select. Hides
+   itself when its archive is empty. */
 .capture-picker-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 22px;
 }
-@media (min-width: 640px) {
+@media (min-width: 960px) {
   .capture-picker-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .capture-picker-row:empty { display: none; }
-.capture-picker-card .picker-head {
-  flex-wrap: wrap;
-  gap: 8px 12px;
+.capture-picker {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 14px;
   align-items: center;
+  padding: 14px 16px 14px 18px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-1);
 }
-.capture-picker-card .picker-head h2 { white-space: nowrap; }
-.capture-picker-card .picker-head .picker-actions {
-  flex: 1 1 200px;
+.capture-picker[hidden] { display: none; }
+.capture-picker::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 12px; bottom: 12px;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+}
+.capture-picker__icon {
+  width: 36px; height: 36px; border-radius: var(--radius);
+  background: var(--accent-bg);
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.capture-picker__icon svg { width: 18px; height: 18px; }
+.capture-picker__body {
   min-width: 0;
-  display: flex;
-  justify-content: flex-end;
+  display: flex; flex-direction: column; gap: 4px;
 }
+.capture-picker__body .t-eyebrow { margin: 0; }
+.capture-picker__row {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  min-width: 0;
+}
+.capture-picker__current {
+  font-family: var(--font-display);
+  font-size: 20px; line-height: 1.15;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 100%;
+}
+.capture-picker__chip {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.capture-picker__note {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-caption);
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+.capture-picker__note[hidden] { display: none; }
+.capture-picker__switch { display: inline-flex; align-items: center; flex-shrink: 0; }
+
 .picker-select {
   appearance: none;
   -webkit-appearance: none;
-  background: rgba(255,255,255,0.05);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  padding: 6px 28px 6px 10px;
-  font-weight: 600;
-  font-size: 12px;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  padding: 8px 30px 8px 12px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: var(--fs-body-xs);
   line-height: 1.3;
   cursor: pointer;
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 100%;
+  max-width: 260px;
   text-overflow: ellipsis;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
   /* inline chevron so we don't ship a separate asset */
-  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%), linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
   background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
 }
-.picker-select:hover { background-color: rgba(255,255,255,0.09); }
+.picker-select:hover { border-color: var(--ink-3); background-color: var(--card-2); }
 .picker-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.picker-select option { background: #101632; color: var(--text); }
-body.light-mode .picker-select {
-  background-color: rgba(255, 255, 255, 0.8) !important;
-  color: #13255d !important;
-  border-color: rgba(90,120,220,0.2) !important;
-}
-body.light-mode .picker-select option { background: #ffffff; color: #13255d; }
-.capture-picker-card .picker-note { margin-top: 8px; }
+.picker-select option { background: var(--card); color: var(--ink); }
 /* Stage 5.2: legacy .icon-btn rules removed — design-system's
    .icon-btn (components.css) styles the dash-header icons. */
 .danger-ghost {
