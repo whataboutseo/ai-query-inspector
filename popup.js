@@ -217,12 +217,20 @@ function isChatgptUrl(url = '') {
   return /^https:\/\/(chatgpt\.com|chat\.openai\.com)\//.test(url);
 }
 
+// Stage 3.1: detect Gemini conversation tabs. Parsing Gemini's
+// conversation payload is a planned feature — for now we recognise the
+// tab so we can show a dedicated "not yet implemented" status rather
+// than "Open a ChatGPT or search page first".
+function isGeminiUrl(url = '') {
+  return /^https:\/\/gemini\.google\.com\//.test(url);
+}
+
 function isSearchUrl(url = '') {
   return /^https:\/\/((([a-z0-9-]+\.)*google\.)|(([a-z0-9-]+\.)*bing\.com)|duckduckgo\.com)/i.test(url);
 }
 
 function isInspectableUrl(url = '') {
-  return isChatgptUrl(url) || isSearchUrl(url);
+  return isChatgptUrl(url) || isSearchUrl(url) || isGeminiUrl(url);
 }
 
 async function getInspectionTargetTab() {
@@ -2061,6 +2069,19 @@ async function inspectCurrentTab() {
   if (!tab?.id || !tab.url) return setStatus('No ChatGPT or search tab found to inspect.', 'error');
 
   try {
+    // Stage 3.1: recognise Gemini tabs and surface an honest
+    // "not yet implemented" message instead of silently failing. A
+    // proper parser needs access to Gemini's internal conversation
+    // payload, which we don't yet have a reverse-engineered schema
+    // for. Until then, the presence of this branch at least tells the
+    // user the extension is aware of their tab.
+    if (isGeminiUrl(tab.url)) {
+      return setStatus(
+        'Gemini capture is planned but not yet implemented in this version. ChatGPT and search-page capture continue to work as usual.',
+        'warn'
+      );
+    }
+
     if (/^https:\/\/(chatgpt\.com|chat\.openai\.com)\//.test(tab.url)) {
       const injectionResults = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func: fetchConversationPayloadInPage });
       const result = injectionResults?.[0]?.result;

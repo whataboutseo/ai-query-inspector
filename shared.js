@@ -772,6 +772,27 @@
     return next;
   }
 
+  /**
+   * Gemini payload parser — NOT YET IMPLEMENTED (stage 3.1 scaffold).
+   *
+   * To implement:
+   *   1. Open a Gemini conversation in DevTools and inspect the XHR to
+   *      gemini.google.com/_/BardChatUi/data/... (batch-execute). The
+   *      relevant response contains a JSON envelope with the full
+   *      conversation tree; the schema uses arrays-of-arrays rather
+   *      than the tidy {mapping} Chat-GPT style.
+   *   2. Extract: turn prompts, model version, fan-out queries (Gemini
+   *      surfaces these as "Check it" sources), and cited URLs.
+   *   3. Normalise to the same shape parseChatgptPayload returns so the
+   *      rest of the popup can consume it unchanged.
+   *
+   * Until implemented, callers should route Gemini tabs to a
+   * "not-yet-implemented" message (see inspectCurrentTab in popup.js).
+   */
+  function parseGeminiPayload(/* raw, options */) {
+    return null;
+  }
+
   const api = Object.freeze({
     sanitizeString,
     normalizeDomain,
@@ -786,6 +807,7 @@
     parseChatgptPayload,
     parseFanoutQueries,
     isFanoutMessage,
+    parseGeminiPayload,
     getSettings,
     setSettings,
     DEFAULT_SETTINGS,

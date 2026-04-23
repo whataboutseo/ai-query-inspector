@@ -22,6 +22,7 @@ A local-only browser extension for:
 ## Notes
 - ChatGPT parsing depends on internal payload structure and may need updates if the site changes
 - Google capture is heuristic and may miss or misclassify results if Google changes its markup
+- Gemini conversations are detected but not yet parsed — support is scaffolded for a future release
 
 
 ## Phase 2
