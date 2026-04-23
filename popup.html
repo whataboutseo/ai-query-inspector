@@ -388,88 +388,142 @@
       </div>
     </section>
 
-    <section id="panelCombined" class="tab-panel hidden combined-layout" role="tabpanel" aria-labelledby="tabCombined" tabindex="0">
-      <div class="combined-controls">
-        <label class="inline-toggle">
-          <span class="switch">
-            <input type="checkbox" id="regDomainToggle" checked />
-            <span class="switch__slider" aria-hidden="true"></span>
-          </span>
-          <span class="inline-toggle__copy">
-            <span class="inline-toggle__label">Match by registered domain</span>
-            <span class="inline-toggle__hint">Groups <code>en.wikipedia.org</code> with <code>wikipedia.org</code>, etc. Turn off for exact-hostname matching.</span>
-          </span>
-        </label>
+    <section id="panelCombined" class="tab-panel hidden" role="tabpanel" aria-labelledby="tabCombined" tabindex="0">
+      <!-- Stage 5.5 Compare recipe: prompt-hero → overlap-hero (F1 +
+           venn) → precision-strip (P/R/Jaccard) → section Rank compare
+           (.rank-compare) → AIO cross-ref section → Missed by ChatGPT
+           section. Match-mode toggle lives as a chip in the prompt-hero
+           meta row. -->
+      <section class="prompt-hero">
+        <div class="prompt-left">
+          <div class="t-eyebrow">COMPARED QUERY</div>
+          <div class="quote" id="combinedQueryLabel">Capture both a ChatGPT conversation and a Google SERP.</div>
+          <div class="meta">
+            <label class="chip" id="combinedMatchChip" style="cursor: pointer;">
+              <input type="checkbox" id="regDomainToggle" checked style="margin: 0; accent-color: var(--accent);" />
+              <span id="regDomainToggleLabel">Match by registered domain</span>
+            </label>
+            <span class="chip mono" id="combinedChatCapturedChip" hidden>—</span>
+            <span class="chip mono" id="combinedSerpCapturedChip" hidden>—</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="overlap-hero">
+        <div>
+          <div class="t-eyebrow">F1 OVERLAP SCORE</div>
+          <div class="pct"><span id="combinedOverlapScore">0</span><span class="unit">%</span></div>
+          <div class="caption" id="combinedOverlapMeta">Capture both sides to see how ChatGPT's citations compare with the top <em>Google</em> results.</div>
+        </div>
+        <div class="venn" id="combinedVenn" aria-hidden="true">
+          <div class="circle c-chatgpt"><span>ChatGPT</span></div>
+          <div class="circle c-google"><span>Google</span></div>
+          <div class="c-num" style="left: 46px; top: 92px;" id="vennChatOnly">0</div>
+          <div class="c-num" style="left: 135px; top: 92px;" id="vennOverlap">0</div>
+          <div class="c-num" style="left: 222px; top: 92px;" id="vennGoogleOnly">0</div>
+        </div>
+      </section>
+
+      <section class="precision-strip">
+        <div class="p-card">
+          <div class="t-eyebrow">PRECISION</div>
+          <div class="val"><span id="combinedPrecisionScore">0</span>%</div>
+          <div class="desc">Of ChatGPT's cited sites, share that also appear in the SERP.</div>
+        </div>
+        <div class="p-card">
+          <div class="t-eyebrow">RECALL</div>
+          <div class="val"><span id="combinedRecallScore">0</span>%</div>
+          <div class="desc">Of top SERP domains, share ChatGPT also cited.</div>
+        </div>
+        <div class="p-card">
+          <div class="t-eyebrow">JACCARD</div>
+          <div class="val"><span id="combinedJaccardScore">0</span>%</div>
+          <div class="desc">Intersection over union — symmetric set similarity.</div>
+        </div>
+      </section>
+
+      <div class="section" data-collapse>
+        <div class="section-head">
+          <div class="title">
+            <span class="s-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><path d="M3 14l4-6 4 4 6-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <div class="title-text">
+              <h3>Rank comparison</h3>
+              <span class="sub" id="combinedRankSummary">SIDE-BY-SIDE: CHATGPT ↔ GOOGLE</span>
+            </div>
+            <span class="count-pill" id="combinedOverlapCount">0</span>
+          </div>
+          <div class="tools">
+            <button id="copyCombinedBtn" class="btn btn-outline" type="button" onclick="event.stopPropagation()">Copy</button>
+            <button id="exportCombinedCsvBtn" class="btn btn-outline" type="button" onclick="event.stopPropagation()">CSV</button>
+            <button id="exportSeoToolCsvBtn" class="btn btn-outline" type="button" onclick="event.stopPropagation()" title="Ahrefs/SEMrush-compatible format">SEO CSV</button>
+            <span class="chevron" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </div>
+        </div>
+        <div class="section-body">
+          <div class="rank-compare" id="combinedWrap">
+            <div class="rank-compare-head">
+              <div class="col gpt">ChatGPT</div>
+              <div class="col mid">Match</div>
+              <div class="col goog">Google</div>
+            </div>
+            <!-- rank-rows rendered by renderCombined -->
+          </div>
+          <div id="combinedEmpty" class="empty-state">Capture both a ChatGPT conversation and a Google search results page to compare overlap.</div>
+        </div>
       </div>
 
-      <section class="summary-grid combined-grid">
-        <article class="card metric-card overlap-card">
-          <span class="metric-label">Overlap score <span class="metric-label-hint" title="F1 score — harmonic mean of precision and recall. 100% means ChatGPT's citations and the SERP results are identical sets of domains.">&#9432;</span></span>
-          <div id="combinedOverlapScore" class="metric-value">0%</div>
-          <div id="combinedOverlapMeta" class="metric-meta">0 of 0 ChatGPT sites appear in Google results</div>
-          <div class="overlap-breakdown">
-            <div class="overlap-stat" title="Precision: share of ChatGPT-cited sites that also appear in the SERP. High precision = ChatGPT's citations are trustworthy vs. the search engine.">
-              <span class="overlap-stat__label">Precision</span>
-              <span id="combinedPrecisionScore" class="overlap-stat__value">0%</span>
-            </div>
-            <div class="overlap-stat" title="Recall: share of top SERP domains that ChatGPT also cited. High recall = ChatGPT is surfacing what the search engine shows at the top.">
-              <span class="overlap-stat__label">Recall</span>
-              <span id="combinedRecallScore" class="overlap-stat__value">0%</span>
-            </div>
-            <div class="overlap-stat" title="Jaccard similarity: intersection divided by union of both domain sets.">
-              <span class="overlap-stat__label">Jaccard</span>
-              <span id="combinedJaccardScore" class="overlap-stat__value">0%</span>
+      <div class="section" data-collapse id="aioCrossrefCard" hidden>
+        <div class="section-head">
+          <div class="title">
+            <span class="s-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><path d="M4 8a4 4 0 0 1 8 0v2a4 4 0 0 1-8 0Zm12 0a4 4 0 1 1-8 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </span>
+            <div class="title-text">
+              <h3>AI Overview × ChatGPT</h3>
+              <span class="sub" id="aioCrossrefSummary">SOURCES GOOGLE&rsquo;S AI OVERVIEW CITED</span>
             </div>
           </div>
-        </article>
-        <article class="card metric-card">
-          <span class="metric-label">Overlap sites</span>
-          <div id="combinedOverlapCount" class="metric-value">0</div>
-        </article>
-        <article class="card metric-card">
-          <span class="metric-label">ChatGPT-only sites</span>
-          <div id="combinedChatgptOnlyCount" class="metric-value">0</div>
-        </article>
-        <article class="card metric-card">
-          <span class="metric-label">Google-only sites</span>
-          <div id="combinedGoogleOnlyCount" class="metric-value">0</div>
-        </article>
-        <article class="card metric-card">
-          <span class="metric-label">Compared query</span>
-          <div id="combinedQueryLabel" class="metric-subvalue smallish">None</div>
-        </article>
-      </section>
-
-      <section id="aioCrossrefCard" class="card aio-card hidden">
-        <div class="section-head compact">
-          <h2><span class="info-head-icon" aria-hidden="true">🤝</span>AI Overview ∩ ChatGPT citations</h2>
-          <span id="aioCrossrefSummary" class="section-summary"></span>
-        </div>
-        <p class="small-note">Domains Google's AI Overview cited for this query, marked <strong>✓</strong> when ChatGPT also cited the same registered domain.</p>
-        <div id="aioCrossrefWrap" class="aio-list"></div>
-      </section>
-
-      <section class="card comparison-card collapsible-section">
-        <div class="section-head">
-          <h2><span class="info-head-icon" aria-hidden="true">📈</span>Rank comparison</h2>
-          <div class="section-actions">
-            <button id="copyCombinedBtn" class="ghost-btn">Copy</button>
-            <button id="exportCombinedCsvBtn" class="ghost-btn">Full CSV</button>
-            <button id="exportSeoToolCsvBtn" class="ghost-btn" title="Ahrefs/SEMrush-compatible format: Keyword, URL, Position, plus AI overlap columns.">SEO tool CSV</button>
+          <div class="tools">
+            <span class="chevron" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
           </div>
         </div>
-        <div id="combinedEmpty" class="empty-state">Capture both a ChatGPT conversation and a Google search results page to compare overlap.</div>
-        <div id="combinedWrap" class="hidden"></div>
-      </section>
-
-      <section class="card missed-card collapsible-section">
-        <div class="section-head">
-          <h2><span class="info-head-icon" aria-hidden="true">🎯</span>Missed by ChatGPT</h2>
-          <span id="missedOpportunitiesSummary" class="section-summary hidden"></span>
+        <div class="section-body">
+          <div id="aioCrossrefWrap" class="aio-list"></div>
         </div>
-        <div id="missedOpportunitiesEmpty" class="empty-state">No Google-only domains detected yet.</div>
-        <div id="missedOpportunitiesWrap" class="result-wrap hidden"></div>
-      </section>
+      </div>
+
+      <div class="section" data-collapse>
+        <div class="section-head">
+          <div class="title">
+            <span class="s-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="6.5" stroke="currentColor" stroke-width="1.6"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.6"/></svg>
+            </span>
+            <div class="title-text">
+              <h3>Missed by ChatGPT</h3>
+              <span class="sub" id="missedOpportunitiesSummary">GOOGLE-RANKED DOMAINS NOT CITED BY CHATGPT</span>
+            </div>
+          </div>
+          <div class="tools">
+            <span class="chevron" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </div>
+        </div>
+        <div class="section-body">
+          <div id="missedOpportunitiesWrap"></div>
+          <div id="missedOpportunitiesEmpty" class="empty-state">No Google-only domains detected yet.</div>
+        </div>
+      </div>
+
+      <!-- Legacy stubs: counts still written here for back-compat. -->
+      <span id="combinedChatgptOnlyCount" class="visually-hidden">0</span>
+      <span id="combinedGoogleOnlyCount" class="visually-hidden">0</span>
     </section>
 
     <section id="panelHistory" class="tab-panel hidden history-layout" role="tabpanel" aria-labelledby="tabHistory" tabindex="0">

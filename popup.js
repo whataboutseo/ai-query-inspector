@@ -1768,41 +1768,66 @@ function renderHistory() {
 
 function renderCombined() {
   const data = buildCombinedData();
-  els.combinedWrap.innerHTML = '';
-  els.missedOpportunitiesWrap.innerHTML = '';
+  // Preserve the rank-compare head and wipe just the rows (after .head).
+  const rankWrap = els.combinedWrap;
+  if (rankWrap) {
+    rankWrap.querySelectorAll('.rank-row').forEach((r) => r.remove());
+  }
+  if (els.missedOpportunitiesWrap) els.missedOpportunitiesWrap.innerHTML = '';
+
+  const setVennCounts = (chatOnly, overlap, googleOnly) => {
+    const co = document.getElementById('vennChatOnly');
+    const ov = document.getElementById('vennOverlap');
+    const go = document.getElementById('vennGoogleOnly');
+    if (co) co.textContent = String(chatOnly);
+    if (ov) ov.textContent = String(overlap);
+    if (go) go.textContent = String(googleOnly);
+  };
+  const setCapturedChip = (id, iso, label) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!iso) { el.hidden = true; return; }
+    el.hidden = false;
+    el.textContent = `${label} · ${formatRelativeCapturedAt(iso)}`;
+  };
+
   if (!data) {
-    els.combinedOverlapScore.textContent = '0%';
-    els.combinedOverlapMeta.textContent = '0 of 0 ChatGPT sites appear in search results';
-    if (els.combinedPrecisionScore) els.combinedPrecisionScore.textContent = '0%';
-    if (els.combinedRecallScore) els.combinedRecallScore.textContent = '0%';
-    if (els.combinedJaccardScore) els.combinedJaccardScore.textContent = '0%';
-    els.combinedOverlapCount.textContent = '0';
-    els.combinedChatgptOnlyCount.textContent = '0';
-    els.combinedGoogleOnlyCount.textContent = '0';
-    if (els.aioCrossrefCard) els.aioCrossrefCard.classList.add('hidden');
-    els.combinedQueryLabel.textContent = 'None';
-    els.combinedEmpty.classList.remove('hidden');
-    els.combinedWrap.classList.add('hidden');
-    els.missedOpportunitiesEmpty.classList.remove('hidden');
-    els.missedOpportunitiesWrap.classList.add('hidden');
-    els.missedOpportunitiesSummary.classList.add('hidden');
+    if (els.combinedOverlapScore) els.combinedOverlapScore.textContent = '0';
+    if (els.combinedOverlapMeta) {
+      els.combinedOverlapMeta.innerHTML = 'Capture both sides to see how ChatGPT&rsquo;s citations compare with the top <em>Google</em> results.';
+    }
+    if (els.combinedPrecisionScore) els.combinedPrecisionScore.textContent = '0';
+    if (els.combinedRecallScore) els.combinedRecallScore.textContent = '0';
+    if (els.combinedJaccardScore) els.combinedJaccardScore.textContent = '0';
+    if (els.combinedOverlapCount) els.combinedOverlapCount.textContent = '0';
+    if (els.combinedChatgptOnlyCount) els.combinedChatgptOnlyCount.textContent = '0';
+    if (els.combinedGoogleOnlyCount) els.combinedGoogleOnlyCount.textContent = '0';
+    if (els.aioCrossrefCard) els.aioCrossrefCard.hidden = true;
+    if (els.combinedQueryLabel) els.combinedQueryLabel.textContent = 'Capture both a ChatGPT conversation and a Google SERP.';
+    if (els.combinedEmpty) els.combinedEmpty.hidden = false;
+    if (rankWrap) rankWrap.hidden = true;
+    setVennCounts(0, 0, 0);
+    setCapturedChip('combinedChatCapturedChip', null);
+    setCapturedChip('combinedSerpCapturedChip', null);
+    if (els.missedOpportunitiesEmpty) els.missedOpportunitiesEmpty.hidden = false;
     return;
   }
 
-  // Headline is F1, which is a better "how similar are these sets" number
-  // than raw precision (the old overlapScore). The breakdown below shows
-  // precision + recall + Jaccard so users can see where the disagreement is.
-  els.combinedOverlapScore.textContent = `${data.f1Score}%`;
-  els.combinedOverlapMeta.textContent = data.overlapMeta;
-  if (els.combinedPrecisionScore) els.combinedPrecisionScore.textContent = `${data.precisionScore}%`;
-  if (els.combinedRecallScore) els.combinedRecallScore.textContent = `${data.recallScore}%`;
-  if (els.combinedJaccardScore) els.combinedJaccardScore.textContent = `${data.jaccardScore}%`;
-  els.combinedOverlapCount.textContent = String(data.overlap.length);
-  els.combinedChatgptOnlyCount.textContent = String(data.chatOnly.length);
-  els.combinedGoogleOnlyCount.textContent = String(data.googleOnly.length);
-  els.combinedQueryLabel.textContent = data.query || 'None';
-  els.combinedEmpty.classList.add('hidden');
-  els.combinedWrap.classList.remove('hidden');
+  // Populated state.
+  if (els.combinedOverlapScore) els.combinedOverlapScore.textContent = String(data.f1Score);
+  if (els.combinedOverlapMeta) els.combinedOverlapMeta.textContent = data.overlapMeta;
+  if (els.combinedPrecisionScore) els.combinedPrecisionScore.textContent = String(data.precisionScore);
+  if (els.combinedRecallScore) els.combinedRecallScore.textContent = String(data.recallScore);
+  if (els.combinedJaccardScore) els.combinedJaccardScore.textContent = String(data.jaccardScore);
+  if (els.combinedOverlapCount) els.combinedOverlapCount.textContent = String(data.overlap.length);
+  if (els.combinedChatgptOnlyCount) els.combinedChatgptOnlyCount.textContent = String(data.chatOnly.length);
+  if (els.combinedGoogleOnlyCount) els.combinedGoogleOnlyCount.textContent = String(data.googleOnly.length);
+  if (els.combinedQueryLabel) els.combinedQueryLabel.textContent = data.query || 'None';
+  if (els.combinedEmpty) els.combinedEmpty.hidden = true;
+  if (rankWrap) rankWrap.hidden = false;
+  setVennCounts(data.chatOnly.length, data.overlap.length, data.googleOnly.length);
+  setCapturedChip('combinedChatCapturedChip', lastChatgptData?.capturedAt, 'ChatGPT');
+  setCapturedChip('combinedSerpCapturedChip', lastGoogleData?.capturedAt, 'SERP');
 
   // Stage 3.4: AI Overview cross-reference. When the captured SERP had
   // an AI Overview, show each of its citation sources and flag the
@@ -1811,7 +1836,7 @@ function renderCombined() {
   if (els.aioCrossrefCard) {
     const aio = Array.isArray(lastGoogleData?.aioSources) ? lastGoogleData.aioSources : [];
     if (aio.length === 0) {
-      els.aioCrossrefCard.classList.add('hidden');
+      els.aioCrossrefCard.hidden = true;
     } else {
       const byReg = currentSettings?.matchByRegisteredDomain !== false;
       const fold = (host) => byReg
@@ -1847,82 +1872,91 @@ function renderCombined() {
         row.appendChild(body);
         els.aioCrossrefWrap.appendChild(row);
       });
-      els.aioCrossrefSummary.textContent = `${matches} of ${aio.length} AI Overview sources also cited by ChatGPT`;
-      els.aioCrossrefCard.classList.remove('hidden');
+      els.aioCrossrefSummary.textContent = `${matches} OF ${aio.length} ALSO CITED BY CHATGPT`;
+      els.aioCrossrefCard.hidden = false;
     }
   }
 
-  const table = document.createElement('div');
-  table.className = 'comparison-table';
-  const header = document.createElement('div');
-  header.className = 'comparison-row comparison-header';
-  ['Domain', 'ChatGPT', 'Google', 'Title', 'Overlap'].forEach((label) => {
-    const cell = document.createElement('div');
-    cell.className = 'comparison-cell';
-    cell.textContent = label;
-    header.appendChild(cell);
-  });
-  table.appendChild(header);
-
+  // Render one .rank-row per unique domain: left cell = ChatGPT,
+  // mid cell = match indicator, right cell = Google rank/title. The
+  // .match modifier highlights rows where both sides have the domain.
   data.rows.forEach((rowData) => {
     const row = document.createElement('div');
-    row.className = 'comparison-row';
+    row.className = 'rank-row' + (rowData.inChatgpt && rowData.inGoogle ? ' match' : '');
 
-    const domain = document.createElement('div');
-    domain.className = 'comparison-cell domain-cell';
-    domain.textContent = rowData.domain;
+    const gpt = document.createElement('div');
+    gpt.className = 'cell';
+    if (rowData.inChatgpt) {
+      const dom = document.createElement('span');
+      dom.className = 'domain' + (rowData.inChatgpt && rowData.inGoogle ? ' match' : '');
+      dom.textContent = rowData.domain;
+      const meta = document.createElement('span');
+      meta.className = 'rank-num';
+      meta.textContent = `${rowData.chatgptCitations}×`;
+      gpt.appendChild(dom);
+      gpt.appendChild(meta);
+    } else {
+      gpt.textContent = '—';
+    }
 
-    const chat = document.createElement('div');
-    chat.className = 'comparison-cell';
-    chat.textContent = rowData.inChatgpt ? `${rowData.chatgptCitations} citation${rowData.chatgptCitations === 1 ? '' : 's'}` : '—';
+    const mid = document.createElement('div');
+    mid.className = 'cell mid';
+    mid.textContent = rowData.inChatgpt && rowData.inGoogle
+      ? '✓'
+      : rowData.inChatgpt ? '← GPT only' : 'Goog only →';
 
-    const google = document.createElement('div');
-    google.className = 'comparison-cell';
-    google.textContent = rowData.inGoogle ? `#${rowData.googleRank}` : '—';
+    const goog = document.createElement('div');
+    goog.className = 'cell goog';
+    if (rowData.inGoogle) {
+      const rank = document.createElement('span');
+      rank.className = 'rank-num';
+      rank.textContent = `#${rowData.googleRank}`;
+      const dom = document.createElement('span');
+      dom.className = 'domain' + (rowData.inChatgpt && rowData.inGoogle ? ' match' : '');
+      dom.textContent = rowData.domain;
+      goog.appendChild(rank);
+      goog.appendChild(dom);
+    } else {
+      goog.textContent = '—';
+    }
 
-    const title = document.createElement('div');
-    title.className = 'comparison-cell title-cell';
-    title.textContent = rowData.googleTitle || '—';
-
-    const overlap = document.createElement('div');
-    overlap.className = 'comparison-cell';
-    const tag = document.createElement('span');
-    tag.className = `overlap-tag ${rowData.inChatgpt && rowData.inGoogle ? 'shared' : rowData.inChatgpt ? 'chatgpt-only' : 'google-only'}`;
-    tag.textContent = rowData.overlapLabel;
-    overlap.appendChild(tag);
-
-    [domain, chat, google, title, overlap].forEach((cell) => row.appendChild(cell));
-    table.appendChild(row);
+    row.appendChild(gpt);
+    row.appendChild(mid);
+    row.appendChild(goog);
+    rankWrap.appendChild(row);
   });
 
-  els.combinedWrap.appendChild(table);
-
+  // "Missed by ChatGPT" — emit .src-row lines (design-system popup
+  // source row pattern) since each line is 1-3 short pieces of info.
   const missed = data.missedOpportunities || [];
-  els.missedOpportunitiesEmpty.classList.toggle('hidden', missed.length > 0);
-  els.missedOpportunitiesWrap.classList.toggle('hidden', missed.length === 0);
-  els.missedOpportunitiesSummary.classList.toggle('hidden', missed.length === 0);
-  els.missedOpportunitiesSummary.textContent = missed.length ? `${missed.length} Google-ranked domains not cited by ChatGPT` : '';
+  if (els.missedOpportunitiesEmpty) els.missedOpportunitiesEmpty.hidden = missed.length > 0;
+  if (els.missedOpportunitiesSummary) {
+    els.missedOpportunitiesSummary.textContent = missed.length
+      ? `${missed.length} GOOGLE-RANKED DOMAINS NOT CITED`
+      : 'GOOGLE-RANKED DOMAINS NOT CITED BY CHATGPT';
+  }
 
   missed.forEach((item) => {
     const row = document.createElement('div');
-    row.className = 'result-row';
-    const top = document.createElement('div');
-    top.className = 'result-top';
-    const rank = document.createElement('span');
-    rank.className = 'result-rank';
-    rank.textContent = item.googleRank ? `#${item.googleRank}` : '—';
-    const domain = document.createElement('span');
-    domain.className = 'domain-tag';
+    row.className = 'src-row';
+    const fav = document.createElement('span');
+    fav.className = 'fav';
+    fav.setAttribute('aria-hidden', 'true');
+    const domainWrap = document.createElement('div');
+    const domain = document.createElement('div');
+    domain.className = 'domain';
     domain.textContent = item.domain;
-    top.appendChild(rank);
-    top.appendChild(domain);
-
     const title = document.createElement('div');
-    title.className = 'result-title';
+    title.className = 't-meta';
     title.textContent = item.googleTitle || 'Untitled result';
-
-    row.appendChild(top);
-    row.appendChild(title);
+    domainWrap.appendChild(domain);
+    domainWrap.appendChild(title);
+    const rank = document.createElement('span');
+    rank.className = 'mentions';
+    rank.textContent = item.googleRank ? `#${item.googleRank}` : '—';
+    row.appendChild(fav);
+    row.appendChild(domainWrap);
+    row.appendChild(rank);
     els.missedOpportunitiesWrap.appendChild(row);
   });
   persistHistorySnapshot();
