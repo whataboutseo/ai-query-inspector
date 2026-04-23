@@ -140,6 +140,7 @@ const els = {
   missedOpportunitiesSummary: document.getElementById('missedOpportunitiesSummary'),
   copyCombinedBtn: document.getElementById('copyCombinedBtn'),
   exportCombinedCsvBtn: document.getElementById('exportCombinedCsvBtn'),
+  exportSeoToolCsvBtn: document.getElementById('exportSeoToolCsvBtn'),
 
   // History
   historyRunCount: document.getElementById('historyRunCount'),
@@ -1452,6 +1453,111 @@ function exportCombinedCsv() {
   showToast('Combined dataset exported');
 }
 
+/**
+ * SEO-tool-compatible CSV export (stage 3.6).
+ *
+ * Produces a single table in the column shape that Ahrefs Rank Tracker
+ * and SEMrush Position Tracking both accept as import. Every row
+ * represents one SERP result with ChatGPT-overlap columns appended so
+ * you can filter "rank better than X and ChatGPT also cites" or
+ * "appears in ChatGPT but not in top-10 SERP" in Excel/Sheets.
+ *
+ * Column choices (common subset of Ahrefs + SEMrush):
+ *   Keyword            — the query
+ *   URL                — result URL
+ *   Domain             — registered domain (honours the reg-domain toggle)
+ *   Position           — SERP rank
+ *   Previous Position  — blank (we don't track SERP drift per-URL)
+ *   Change             — blank
+ *   Search Volume      — blank (we don't have keyword data)
+ *   Traffic %          — blank
+ *   Title              — result title
+ *   Snippet            — result snippet
+ *   AI_Cited           — yes/no
+ *   AI_Citation_Count  — how many times ChatGPT cited this domain
+ *   AI_Rank            — rank by citation count (1 = most cited)
+ *   Overlap_Flag       — "shared" / "serp_only" / "ai_only"
+ *   Engine             — google / bing / duckduckgo
+ *   Captured_At        — ISO timestamp
+ */
+function exportSeoToolCsv() {
+  if (!lastGoogleData?.results?.length) return setStatus('Capture a search results page first.', 'error');
+
+  const byReg = currentSettings?.matchByRegisteredDomain !== false;
+  const fold = (host) => byReg
+    ? self.AIQIShared.registeredDomain(host || '')
+    : self.AIQIShared.normalizeDomain(host || '');
+
+  // Aggregate ChatGPT citation counts by folded domain.
+  const chatByFolded = new Map();
+  (lastChatgptData?.domainCounts || []).forEach((item) => {
+    const key = fold(item.domain || '');
+    if (!key) return;
+    chatByFolded.set(key, (chatByFolded.get(key) || 0) + (item.count || 0));
+  });
+  // Derive AI-rank ordering: 1 = most cited, ties by alpha.
+  const aiRanked = [...chatByFolded.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const aiRankByDomain = new Map(aiRanked.map(([dom], i) => [dom, i + 1]));
+
+  // Track which folded domains appear in the SERP so we can emit AI-only
+  // rows afterwards.
+  const serpFoldedDomains = new Set();
+  const rows = [[
+    'Keyword', 'URL', 'Domain', 'Position', 'Previous Position', 'Change',
+    'Search Volume', 'Traffic %', 'Title', 'Snippet',
+    'AI_Cited', 'AI_Citation_Count', 'AI_Rank', 'Overlap_Flag',
+    'Engine', 'Captured_At',
+  ]];
+
+  const keyword = lastGoogleData.query || lastChatgptData?.latestUserPrompt || '';
+  const engine = lastGoogleData.engineLabel || lastGoogleData.engine || '';
+  const capturedAt = lastGoogleData.capturedAt || '';
+
+  (lastGoogleData.results || []).forEach((r) => {
+    const folded = fold(r.domain);
+    serpFoldedDomains.add(folded);
+    const aiCount = chatByFolded.get(folded) || 0;
+    const aiRank = aiRankByDomain.get(folded) || '';
+    rows.push([
+      keyword,
+      r.url || '',
+      folded,
+      r.rank || '',
+      '', // Previous Position — not tracked
+      '', // Change
+      '', // Search Volume
+      '', // Traffic %
+      r.title || '',
+      r.snippet || '',
+      aiCount > 0 ? 'yes' : 'no',
+      aiCount,
+      aiRank,
+      aiCount > 0 ? 'shared' : 'serp_only',
+      engine,
+      capturedAt,
+    ]);
+  });
+
+  // Emit AI-only rows (ChatGPT cited these but SERP didn't rank them in
+  // the top 10). These have blank Position columns; SEO tools handle
+  // empty Position as "not ranking".
+  [...chatByFolded.entries()]
+    .filter(([dom]) => !serpFoldedDomains.has(dom))
+    .sort((a, b) => b[1] - a[1])
+    .forEach(([dom, count]) => {
+      rows.push([
+        keyword, '', dom, '', '', '', '', '', '', '',
+        'yes', count, aiRankByDomain.get(dom) || '', 'ai_only',
+        engine, capturedAt,
+      ]);
+    });
+
+  const filename = `seo-tool-export-${slugify(keyword, 'comparison')}.csv`;
+  downloadFile(filename, rows.map((r) => r.map(csvEscape).join(',')).join('\n'), 'text/csv;charset=utf-8');
+  showToast('SEO tool CSV exported');
+}
+
 function exportHistoryCsv() {
   if (!comparisonHistory.length) return setStatus('No history to export yet.', 'error');
   const rows = [['saved_at', 'query', 'prompt', 'engine', 'model', 'browser', 'overlap_score', 'overlap_sites', 'chatgpt_only_sites', 'google_only_sites', 'fanouts', 'cited_sources', 'google_results', 'serp_features', 'chatgpt_page_url', 'search_page_url', 'chatgpt_captured_at', 'search_captured_at', 'drift_added', 'drift_removed', 'drift_added_domains', 'drift_removed_domains']];
@@ -1822,6 +1928,7 @@ function bindEvents() {
   els.exportChatgptCsvBtn.addEventListener('click', exportChatgptCsv);
   els.exportGoogleCsvBtn.addEventListener('click', exportGoogleCsv);
   els.exportCombinedCsvBtn.addEventListener('click', exportCombinedCsv);
+  if (els.exportSeoToolCsvBtn) els.exportSeoToolCsvBtn.addEventListener('click', exportSeoToolCsv);
   els.exportHistoryCsvBtn.addEventListener('click', exportHistoryCsv);
   els.clearHistoryBtn.addEventListener('click', async () => {
     comparisonHistory = [];
