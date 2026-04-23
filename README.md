@@ -1,4 +1,6 @@
-# AI Query Inspector
+# AI Query Inspector Claude
+
+A Claude-authored rework of the original AI Query Inspector extension. Designed to coexist with the original (different name, icon, and manifest name) so both can be loaded side-by-side for comparison.
 
 A local-only browser extension for:
 - inspecting the current ChatGPT conversation payload
