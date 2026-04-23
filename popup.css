@@ -1885,3 +1885,16 @@ body.light-mode .inline-toggle {
 body.light-mode .inline-toggle__label { color: #13255d !important; }
 body.light-mode .inline-toggle__hint  { color: #3d4e86 !important; }
 body.light-mode .inline-toggle code   { background: rgba(13, 28, 74, 0.08) !important; }
+
+/* -----------------------------------------------------------------------
+   Popup density — stage 2.9.
+   The 430px popup previously rendered 7 metric cards in a 2-column grid,
+   wrapping onto 4 rows of tight chips that were hard to scan. Hide the
+   three lowest-priority cards (Unique sites, UTM coverage, Retrieval
+   intensity — the last is literally a re-rendering of the three numerics
+   already shown) in the popup; they're still visible on the full-page
+   dashboard.
+   ----------------------------------------------------------------------- */
+body:not(.full-page) .popup-hide {
+  display: none !important;
+}
