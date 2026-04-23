@@ -1659,3 +1659,103 @@ body.light-mode .summary-toggle:focus-visible {
   outline-color: #2a5bd7;
   box-shadow: 0 0 0 4px rgba(42, 91, 215, 0.22);
 }
+
+/* -----------------------------------------------------------------------
+   In-app prompt modal.
+   Replaces the blocking window.prompt() with an accessible dialog that
+   works inside the extension popup (where window.prompt is unreliable).
+   ----------------------------------------------------------------------- */
+.prompt-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+.prompt-modal.hidden { display: none; }
+.prompt-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 10, 22, 0.72);
+  backdrop-filter: blur(2px);
+}
+.prompt-modal__dialog {
+  position: relative;
+  width: min(520px, 100%);
+  background: var(--panel, #121626);
+  color: var(--text, #e7ecf7);
+  border: 1px solid var(--border, rgba(255,255,255,0.12));
+  border-radius: 16px;
+  padding: 20px 22px;
+  box-shadow: 0 20px 48px rgba(0,0,0,0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.prompt-modal__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+}
+.prompt-modal__message {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted, #9aa3b2);
+  line-height: 1.45;
+}
+.prompt-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.prompt-modal__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted, #9aa3b2);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.prompt-modal__input {
+  appearance: none;
+  width: 100%;
+  border: 1px solid var(--border, rgba(255,255,255,0.14));
+  background: rgba(255,255,255,0.05);
+  color: var(--text, #e7ecf7);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+}
+.prompt-modal__input:focus-visible {
+  outline: 2px solid var(--accent, #78a8ff);
+  outline-offset: 2px;
+}
+.prompt-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.prompt-modal__primary {
+  background: linear-gradient(90deg, rgba(120,168,255,0.22), rgba(139,92,246,0.22));
+  border-color: rgba(120,168,255,0.38);
+}
+
+body.light-mode .prompt-modal__dialog {
+  background: #ffffff !important;
+  color: #13255d !important;
+  border-color: rgba(42, 91, 215, 0.22) !important;
+}
+body.light-mode .prompt-modal__backdrop {
+  background: rgba(13, 28, 74, 0.42);
+}
+body.light-mode .prompt-modal__message,
+body.light-mode .prompt-modal__label {
+  color: #3d4e86 !important;
+}
+body.light-mode .prompt-modal__input {
+  background: #f6f8ff !important;
+  color: #13255d !important;
+  border-color: rgba(42, 91, 215, 0.32) !important;
+}

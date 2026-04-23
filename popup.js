@@ -195,6 +195,86 @@ function showToast(message) {
   toastTimer = setTimeout(() => els.toast.classList.add('hidden'), 1400);
 }
 
+/**
+ * Accessible replacement for window.prompt(). Resolves to the entered
+ * string, or null if the user cancels / dismisses. Behaviour:
+ *   - Enter submits, Escape cancels, click-outside-the-dialog cancels.
+ *   - Focus is trapped on the input while open, restored on close.
+ *   - Multiple concurrent calls queue — we only show one modal at a time.
+ */
+let promptModalQueue = Promise.resolve();
+function openPromptModal({ title = 'Enter value', message = '', label = 'Value', initialValue = '', okLabel = 'OK', cancelLabel = 'Cancel' } = {}) {
+  const run = () => new Promise((resolve) => {
+    const modal = document.getElementById('promptModal');
+    const input = document.getElementById('promptModalInput');
+    const okBtn = document.getElementById('promptModalOk');
+    const cancelBtn = document.getElementById('promptModalCancel');
+    const titleEl = document.getElementById('promptModalTitle');
+    const messageEl = document.getElementById('promptModalMessage');
+    const labelEl = document.getElementById('promptModalLabel');
+    if (!modal || !input || !okBtn || !cancelBtn) {
+      // Fallback if the modal markup is missing (shouldn't happen in the
+      // shipped extension; defensive for unit-test harnesses).
+      resolve(window.prompt(message || title, initialValue) || null);
+      return;
+    }
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    messageEl.classList.toggle('hidden', !message);
+    labelEl.textContent = label;
+    okBtn.textContent = okLabel;
+    cancelBtn.textContent = cancelLabel;
+    input.value = initialValue;
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    const cleanup = (value) => {
+      modal.classList.add('hidden');
+      modal.setAttribute('hidden', '');
+      okBtn.removeEventListener('click', handleOk);
+      cancelBtn.removeEventListener('click', handleCancel);
+      modal.removeEventListener('click', handleBackdropClick);
+      input.removeEventListener('keydown', handleKey);
+      document.removeEventListener('keydown', handleEscape, true);
+      try { previouslyFocused?.focus?.(); } catch {}
+      resolve(value);
+    };
+
+    const handleOk = () => cleanup(input.value.trim() || null);
+    const handleCancel = () => cleanup(null);
+    const handleBackdropClick = (ev) => {
+      if (ev.target instanceof HTMLElement && ev.target.dataset.promptDismiss !== undefined) cleanup(null);
+    };
+    const handleKey = (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); handleOk(); }
+    };
+    const handleEscape = (ev) => {
+      if (ev.key === 'Escape') { ev.preventDefault(); cleanup(null); }
+    };
+
+    okBtn.addEventListener('click', handleOk);
+    cancelBtn.addEventListener('click', handleCancel);
+    modal.addEventListener('click', handleBackdropClick);
+    input.addEventListener('keydown', handleKey);
+    document.addEventListener('keydown', handleEscape, true);
+
+    modal.classList.remove('hidden');
+    modal.removeAttribute('hidden');
+    // Defer focus so the browser has a chance to paint before we move focus
+    // into the input; otherwise select() occasionally no-ops.
+    requestAnimationFrame(() => {
+      try { input.focus(); input.select(); } catch {}
+    });
+  });
+
+  // Serialize concurrent calls so we never stack two dialogs on top of each
+  // other. The queue is a single chain of promises.
+  const next = promptModalQueue.then(run);
+  promptModalQueue = next.catch(() => null);
+  return next;
+}
+
 function sanitizeString(value, maxLen = 500) {
   if (typeof value !== 'string') return '';
   const normalized = value.trim().replace(/\s+/g, ' ');
@@ -1791,7 +1871,13 @@ function bindEvents() {
     await openGoogleForQuery(query);
   });
   els.openGoogleManualBtn.addEventListener('click', async () => {
-    const manual = window.prompt('Enter a Google query to open locally:', lastChatgptData?.latestUserPrompt || lastChatgptData?.queries?.[0]?.q || '');
+    const manual = await openPromptModal({
+      title: 'Open a manual search',
+      message: 'The query will open in a new tab on Google, Bing, or DuckDuckGo depending on your current default engine for the extension.',
+      label: 'Search query',
+      initialValue: lastChatgptData?.latestUserPrompt || lastChatgptData?.queries?.[0]?.q || '',
+      okLabel: 'Open search',
+    });
     if (!manual) return;
     await openGoogleForQuery(manual);
   });

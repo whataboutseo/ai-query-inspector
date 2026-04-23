@@ -334,6 +334,22 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
+  <div id="promptModal" class="prompt-modal hidden" role="dialog" aria-modal="true" aria-labelledby="promptModalTitle" hidden>
+    <div class="prompt-modal__backdrop" data-prompt-dismiss></div>
+    <div class="prompt-modal__dialog">
+      <h2 id="promptModalTitle" class="prompt-modal__title">Enter value</h2>
+      <p id="promptModalMessage" class="prompt-modal__message"></p>
+      <label class="prompt-modal__field">
+        <span class="prompt-modal__label" id="promptModalLabel">Input</span>
+        <input id="promptModalInput" class="prompt-modal__input" type="text" autocomplete="off" spellcheck="false" />
+      </label>
+      <div class="prompt-modal__actions">
+        <button type="button" id="promptModalCancel" class="ghost-btn" data-prompt-dismiss>Cancel</button>
+        <button type="button" id="promptModalOk" class="ghost-btn prompt-modal__primary">OK</button>
+      </div>
+    </div>
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>
