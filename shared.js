@@ -417,6 +417,85 @@
   }
 
   /**
+   * Storage schema.
+   *
+   * All persisted keys live here so the popup and the service worker
+   * read and write against the same names. Do NOT touch chrome.storage
+   * with raw string keys outside of this file — use the helpers below.
+   */
+  const STORAGE_KEYS = Object.freeze({
+    CHATGPT_DATA: 'chatgptInspectorData',
+    GOOGLE_DATA: 'googleInspectorData',
+    ACTIVE_VIEW: 'inspectorActiveView',
+    PENDING_GOOGLE_QUERY: 'pendingGoogleQuery',
+    PENDING_CHATGPT_SNAPSHOT: 'pendingChatgptSnapshot',
+    HISTORY: 'comparisonHistory',
+    LAST_HISTORY_FINGERPRINT: 'lastHistoryFingerprint',
+    THEME_MODE: 'inspectorThemeMode',
+  });
+
+  // Serialise concurrent writes within a single execution context so the
+  // popup's rapid-fire auto-saves (e.g. switchTab → saveLocalState) don't
+  // overlap. chrome.storage is already atomic per-set, but consecutive
+  // sets from the same context can still race against one another when
+  // one read-modify-writes a collection (history, fingerprint).
+  let writeQueue = Promise.resolve();
+  function queueStorageWrite(fn) {
+    const next = writeQueue.then(() => fn()).catch(() => null);
+    writeQueue = next;
+    return next;
+  }
+
+  const storage = {
+    keys: STORAGE_KEYS,
+
+    async get(keys) {
+      if (typeof chrome === 'undefined' || !chrome.storage?.local) return {};
+      try { return await chrome.storage.local.get(keys); } catch { return {}; }
+    },
+
+    async set(patch) {
+      if (typeof chrome === 'undefined' || !chrome.storage?.local) return;
+      return queueStorageWrite(() => chrome.storage.local.set(patch));
+    },
+
+    async remove(keys) {
+      if (typeof chrome === 'undefined' || !chrome.storage?.local) return;
+      return queueStorageWrite(() => chrome.storage.local.remove(keys));
+    },
+
+    // Typed accessors — every persisted record in the extension has a
+    // named setter to keep the schema discoverable.
+    saveChatgptData(value) { return this.set({ [STORAGE_KEYS.CHATGPT_DATA]: value }); },
+    saveGoogleData(value)  { return this.set({ [STORAGE_KEYS.GOOGLE_DATA]: value }); },
+    saveActiveView(value)  { return this.set({ [STORAGE_KEYS.ACTIVE_VIEW]: value }); },
+    saveHistory(value)     { return this.set({ [STORAGE_KEYS.HISTORY]: value }); },
+    saveThemeMode(value)   { return this.set({ [STORAGE_KEYS.THEME_MODE]: value }); },
+    savePendingChatgptSnapshot(value) { return this.set({ [STORAGE_KEYS.PENDING_CHATGPT_SNAPSHOT]: value }); },
+    savePendingGoogleQuery(value) { return this.set({ [STORAGE_KEYS.PENDING_GOOGLE_QUERY]: value }); },
+    clearPendingGoogleQuery()     { return this.remove(STORAGE_KEYS.PENDING_GOOGLE_QUERY); },
+
+    // Composite write used by the popup whenever the in-memory state
+    // snapshot needs to persist (after a tab switch, a capture, a theme
+    // toggle, etc.). Passing only the keys that changed is fine; missing
+    // keys are left untouched.
+    saveBatch(patch) {
+      const allowed = new Set(Object.values(STORAGE_KEYS));
+      const filtered = Object.fromEntries(
+        Object.entries(patch || {}).filter(([k]) => allowed.has(k))
+      );
+      if (Object.keys(filtered).length === 0) return Promise.resolve();
+      return this.set(filtered);
+    },
+
+    // Composite read — returns the full inspector snapshot used by the
+    // popup's loadLocalState().
+    loadSnapshot() {
+      return this.get(Object.values(STORAGE_KEYS));
+    },
+  };
+
+  /**
    * User preferences persisted in chrome.storage.local under the
    * `aiqiSettings` key. Centralised here so the popup and the service
    * worker agree on defaults and cannot drift.
@@ -460,6 +539,8 @@
     setSettings,
     DEFAULT_SETTINGS,
     SETTINGS_KEY,
+    storage,
+    STORAGE_KEYS,
   });
 
   root.AIQIShared = api;

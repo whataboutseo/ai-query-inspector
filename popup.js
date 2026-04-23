@@ -134,7 +134,7 @@ function applyTheme(mode = 'dark') {
 
 async function toggleThemeMode() {
   applyTheme(themeMode === 'light' ? 'dark' : 'light');
-  await chrome.storage.local.set({ inspectorThemeMode: themeMode });
+  await self.AIQIShared.storage.saveThemeMode(themeMode);
 }
 
 function setupCollapsibleSections() {
@@ -441,25 +441,27 @@ function exportFullDataset() {
 
 
 async function saveLocalState() {
-  await chrome.storage.local.set({
-    chatgptInspectorData: lastChatgptData,
-    googleInspectorData: lastGoogleData,
-    inspectorActiveView: activeView,
-    comparisonHistory,
-    lastHistoryFingerprint: lastSavedFingerprint,
-    inspectorThemeMode: themeMode
+  const K = self.AIQIShared.STORAGE_KEYS;
+  await self.AIQIShared.storage.saveBatch({
+    [K.CHATGPT_DATA]: lastChatgptData,
+    [K.GOOGLE_DATA]: lastGoogleData,
+    [K.ACTIVE_VIEW]: activeView,
+    [K.HISTORY]: comparisonHistory,
+    [K.LAST_HISTORY_FINGERPRINT]: lastSavedFingerprint,
+    [K.THEME_MODE]: themeMode,
   });
 }
 
 async function loadLocalState() {
-  const state = await chrome.storage.local.get(['chatgptInspectorData', 'googleInspectorData', 'inspectorActiveView', 'pendingGoogleQuery', 'pendingChatgptSnapshot', 'comparisonHistory', 'lastHistoryFingerprint', 'inspectorThemeMode']);
-  lastChatgptData = state.chatgptInspectorData || state.pendingChatgptSnapshot || null;
-  lastGoogleData = state.googleInspectorData || null;
-  comparisonHistory = Array.isArray(state.comparisonHistory) ? state.comparisonHistory : [];
-  lastSavedFingerprint = state.lastHistoryFingerprint || '';
-  activeView = state.inspectorActiveView || 'chatgpt';
-  applyTheme(state.inspectorThemeMode || 'dark');
-  return state.pendingGoogleQuery || '';
+  const K = self.AIQIShared.STORAGE_KEYS;
+  const state = await self.AIQIShared.storage.loadSnapshot();
+  lastChatgptData = state[K.CHATGPT_DATA] || state[K.PENDING_CHATGPT_SNAPSHOT] || null;
+  lastGoogleData = state[K.GOOGLE_DATA] || null;
+  comparisonHistory = Array.isArray(state[K.HISTORY]) ? state[K.HISTORY] : [];
+  lastSavedFingerprint = state[K.LAST_HISTORY_FINGERPRINT] || '';
+  activeView = state[K.ACTIVE_VIEW] || 'chatgpt';
+  applyTheme(state[K.THEME_MODE] || 'dark');
+  return state[K.PENDING_GOOGLE_QUERY] || '';
 }
 
 function switchTab(tabName) {
@@ -1484,7 +1486,7 @@ async function inspectCurrentTab() {
       if (!result) return setStatus('No data returned from the page.', 'error');
       if (result.error) return setStatus(result.error, 'error');
       lastChatgptData = { ...parseChatgptPayload(result.payload), conversationId: result.conversationId, pageUrl: result.pageUrl || tab.url || '', browser: getBrowserLabel(), capturedAt: new Date().toISOString() };
-      await chrome.storage.local.set({ pendingChatgptSnapshot: lastChatgptData });
+      await self.AIQIShared.storage.savePendingChatgptSnapshot(lastChatgptData);
       await saveLocalState();
       renderChatgpt(lastChatgptData);
       renderCombined();
@@ -1495,7 +1497,10 @@ async function inspectCurrentTab() {
     }
 
     if (/^https:\/\/((([a-z0-9-]+\.)*google\.)|(([a-z0-9-]+\.)*bing\.com)|duckduckgo\.com)/i.test(tab.url)) {
-      const { pendingGoogleQuery = '', pendingChatgptSnapshot = null } = await chrome.storage.local.get(['pendingGoogleQuery', 'pendingChatgptSnapshot']);
+      const K = self.AIQIShared.STORAGE_KEYS;
+      const snap = await self.AIQIShared.storage.get([K.PENDING_GOOGLE_QUERY, K.PENDING_CHATGPT_SNAPSHOT]);
+      const pendingGoogleQuery = snap[K.PENDING_GOOGLE_QUERY] || '';
+      const pendingChatgptSnapshot = snap[K.PENDING_CHATGPT_SNAPSHOT] || null;
       if (!lastChatgptData && pendingChatgptSnapshot) lastChatgptData = pendingChatgptSnapshot;
       renderChatgpt(lastChatgptData);
       const injectionResults = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func: fetchSearchResultsInPage });
@@ -1503,7 +1508,7 @@ async function inspectCurrentTab() {
       if (!result) return setStatus('No data returned from the search page.', 'error');
       if (result.error) return setStatus(result.error, 'error');
       lastGoogleData = { ...parseGooglePayload(result, pendingGoogleQuery), pageUrl: result.pageUrl || tab.url || '', browser: getBrowserLabel() };
-      await chrome.storage.local.remove('pendingGoogleQuery');
+      await self.AIQIShared.storage.clearPendingGoogleQuery();
       await saveLocalState();
       renderChatgpt(lastChatgptData);
       renderGoogle(lastGoogleData);
@@ -1525,10 +1530,11 @@ async function openGoogleForQuery(query) {
   if (!cleanQuery) return setStatus('No query available to open in Google.', 'error');
   activeView = 'google';
   const currentTab = await getInspectionTargetTab();
-  await chrome.storage.local.set({
-    pendingGoogleQuery: cleanQuery,
-    pendingChatgptSnapshot: lastChatgptData,
-    inspectorActiveView: 'google'
+  const K = self.AIQIShared.STORAGE_KEYS;
+  await self.AIQIShared.storage.saveBatch({
+    [K.PENDING_GOOGLE_QUERY]: cleanQuery,
+    [K.PENDING_CHATGPT_SNAPSHOT]: lastChatgptData,
+    [K.ACTIVE_VIEW]: 'google',
   });
   const googleTab = await chrome.tabs.create({
     url: `https://www.google.com/search?q=${encodeURIComponent(cleanQuery)}`,
@@ -1626,11 +1632,12 @@ async function init() {
   switchTab(activeView);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
+    const K = self.AIQIShared.STORAGE_KEYS;
     let shouldRender = false;
-    if (changes.chatgptInspectorData) { lastChatgptData = changes.chatgptInspectorData.newValue || null; shouldRender = true; }
-    if (changes.googleInspectorData) { lastGoogleData = changes.googleInspectorData.newValue || null; shouldRender = true; }
-    if (changes.comparisonHistory) { comparisonHistory = Array.isArray(changes.comparisonHistory.newValue) ? changes.comparisonHistory.newValue : []; shouldRender = true; }
-    if (changes.inspectorActiveView) { activeView = changes.inspectorActiveView.newValue || activeView; }
+    if (changes[K.CHATGPT_DATA]) { lastChatgptData = changes[K.CHATGPT_DATA].newValue || null; shouldRender = true; }
+    if (changes[K.GOOGLE_DATA]) { lastGoogleData = changes[K.GOOGLE_DATA].newValue || null; shouldRender = true; }
+    if (changes[K.HISTORY]) { comparisonHistory = Array.isArray(changes[K.HISTORY].newValue) ? changes[K.HISTORY].newValue : []; shouldRender = true; }
+    if (changes[K.ACTIVE_VIEW]) { activeView = changes[K.ACTIVE_VIEW].newValue || activeView; }
     if (shouldRender) {
       renderChatgpt(lastChatgptData);
       renderGoogle(lastGoogleData);

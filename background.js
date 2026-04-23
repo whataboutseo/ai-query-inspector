@@ -7,7 +7,7 @@
  */
 importScripts('shared.js');
 
-const { parseChatgptPayload, getSettings } = self.AIQIShared;
+const { parseChatgptPayload, getSettings, storage } = self.AIQIShared;
 
 function isChatgptUrl(url = '') {
   return /^https:\/\/(chatgpt\.com|chat\.openai\.com)\//.test(url);
@@ -56,7 +56,7 @@ async function maybeCaptureTab(tabId, url) {
         browser: 'Background capture',
         capturedAt: new Date().toISOString(),
       });
-      if (parsed) await chrome.storage.local.set({ chatgptInspectorData: parsed });
+      if (parsed) await storage.saveChatgptData(parsed);
     }
   } catch {
     // Ignore: auto-capture is best-effort; users can always click Refresh.
