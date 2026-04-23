@@ -600,6 +600,11 @@
     ).slice(0, 500);
 
     const model = sanitizeString(raw.default_model_slug || '', 120) || null;
+    // ChatGPT surfaces the conversation's name on the raw payload as
+    // `title`. Preferred over the last-turn prompt when present — users
+    // think of conversations by the sidebar name, not by whatever they
+    // most recently typed.
+    const title = sanitizeString(raw.title || '', 200) || '';
     const turnList = Array.isArray(conversationTurns) ? conversationTurns : [];
     const latestTurn = turnList.length ? turnList[turnList.length - 1] : null;
 
@@ -622,6 +627,7 @@
 
     const result = {
       model,
+      title,
       queries: summaryQueries,
       citedSources: summaryCitedSources,
       totalUrls,

@@ -750,10 +750,14 @@ function formatPickerTimestamp(iso) {
 
 function buildChatgptPickerLabel(entry, isLatest) {
   const stamp = formatPickerTimestamp(entry?.capturedAt);
-  const rawPrompt = entry?.latestUserPrompt || entry?.conversationId || 'Untitled conversation';
-  const prompt = sanitizeString(rawPrompt, 60);
+  // Prefer the ChatGPT sidebar title (stable across turns) over the
+  // last-turn prompt. Fall back to the prompt for legacy entries that
+  // pre-date title capture, then to the conversationId as a last
+  // resort so we never render a bare timestamp.
+  const raw = entry?.title || entry?.latestUserPrompt || entry?.conversationId || 'Untitled conversation';
+  const label = sanitizeString(raw, 60);
   const suffix = isLatest ? ' · Latest' : '';
-  return `${stamp} — ${prompt}${suffix}`;
+  return `${stamp} — ${label}${suffix}`;
 }
 
 function buildGooglePickerLabel(entry, isLatest) {
@@ -1406,6 +1410,7 @@ function persistHistorySnapshot() {
     savedAt: new Date().toISOString(),
     query: data.query,
     prompt: lastChatgptData?.latestUserPrompt || '',
+    conversationTitle: lastChatgptData?.title || '',
     engine: data.engine,
     engineLabel: data.engineLabel,
     model: lastChatgptData?.model || '',
@@ -1508,7 +1513,7 @@ function renderHistory() {
   const matches = term
     ? history.filter((h) => {
         const haystack = [
-          h.query, h.prompt, h.engineLabel, h.engine, h.model, h.browser,
+          h.query, h.prompt, h.conversationTitle, h.engineLabel, h.engine, h.model, h.browser,
           ...(Array.isArray(h.googleDomains) ? h.googleDomains : []),
           ...(Array.isArray(h.chatgptDomains) ? h.chatgptDomains : []),
         ].filter(Boolean).join(' ').toLowerCase();
@@ -1564,7 +1569,13 @@ function renderHistory() {
     title.textContent = item.query || 'Untitled query';
     const meta = document.createElement('div');
     meta.className = 'history-meta';
-    meta.textContent = `${item.engineLabel || item.engine || 'Search'} • ${item.model || 'Unknown model'} • ${new Date(item.savedAt).toLocaleString()}`;
+    const metaParts = [
+      item.conversationTitle ? `Chat: ${item.conversationTitle}` : '',
+      item.engineLabel || item.engine || 'Search',
+      item.model || 'Unknown model',
+      new Date(item.savedAt).toLocaleString(),
+    ].filter(Boolean);
+    meta.textContent = metaParts.join(' • ');
     titleWrap.appendChild(title);
     titleWrap.appendChild(meta);
 
