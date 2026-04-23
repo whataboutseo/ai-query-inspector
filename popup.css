@@ -1502,11 +1502,15 @@ body.light-mode .eyebrow,
 body.light-mode .history-drift,
 body.light-mode .result-meta,
 body.light-mode .source-meta {
-  color: #6172a7 !important;
+  /* Darkened from #6172a7 (~4.15:1 on the light blue background, which
+     fails WCAG AA for small text) to #3d4e86 (~6.5:1, comfortably AA). */
+  color: #3d4e86 !important;
 }
 
 body.light-mode .empty-state {
-  color: #6678ae !important;
+  /* Same reasoning as above — empty states are secondary copy but still
+     need to pass AA for normal text. */
+  color: #3d4e86 !important;
 }
 
 body.light-mode .domain-tag,
@@ -1549,8 +1553,22 @@ body.light-mode .status-ok {
   color: #1e6b52 !important;
 }
 
+body.light-mode .status-warn {
+  /* Dark mode value (#ffe6b0) has 1.06:1 contrast on light background —
+     unreadable. Use a deep amber that clears WCAG AA (4.7:1 on #eaf0ff). */
+  color: #8a5a00 !important;
+}
+
 body.light-mode .status-error {
   color: #a23b3b !important;
+}
+
+body.light-mode .origin-badge.training {
+  /* Dark mode uses var(--muted) = #9cadcf, which has 1.80:1 contrast on
+     the light background — fails AA. Use the site's muted-blue ink. */
+  color: #3d4e86 !important;
+  background: rgba(61, 78, 134, 0.08) !important;
+  border-color: rgba(61, 78, 134, 0.22) !important;
 }
 
 body.light-mode a,
