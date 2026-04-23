@@ -17,7 +17,7 @@ A local-only browser extension for:
 ## Privacy
 - Auto-captures ChatGPT conversations by default. The extension has declared host access to chatgpt.com and chat.openai.com; on every conversation load it fetches the conversation JSON from ChatGPT's own backend using your existing session — nothing is sent off-device.
 - **Opt out at any time:** toggle *Auto-capture ChatGPT conversations* off in the **Privacy & safety** card in the popup. When it's off, no conversation data is read until you open the popup and click **Refresh**.
-- Search pages (Google / Bing / DuckDuckGo) are captured only when you open the extension popup while that tab is active. The extension has no host permission for search sites; it relies on `activeTab`, which is granted per-click.
+- Search pages (Google / Bing / DuckDuckGo) are captured either when you open the popup on that tab, or when you use the *Open Google for prompt* handoff. The extension declares host permission for `*.google.com`, `www.bing.com`, and `duckduckgo.com` so the handoff can auto-capture the SERP without a second click; the extension still never sends anything off-device.
 - Stores the last captured ChatGPT conversation (including prompts, responses, and cited URLs) and the last SERP result set locally on this device for comparison.
 - Sends nothing off-device. No analytics. No cloud sync.
 
