@@ -408,6 +408,35 @@ body.light-mode .count-badge {
   line-height: 1.3;
 }
 .ghost-btn:hover { background: rgba(255,255,255,0.1); }
+.picker-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 6px 28px 6px 10px;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.3;
+  cursor: pointer;
+  max-width: 360px;
+  /* inline chevron so we don't ship a separate asset */
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.picker-select:hover { background-color: rgba(255,255,255,0.09); }
+.picker-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.picker-select option { background: #101632; color: var(--text); }
+body.light-mode .picker-select {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  color: #13255d !important;
+  border-color: rgba(90,120,220,0.2) !important;
+}
+body.light-mode .picker-select option { background: #ffffff; color: #13255d; }
+.capture-picker-card .picker-note { margin-top: 8px; }
 .icon-btn {
   appearance: none;
   border: 1px solid var(--border);

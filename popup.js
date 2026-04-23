@@ -156,7 +156,15 @@ const els = {
   historyEmpty: document.getElementById('historyEmpty'),
   historyWrap: document.getElementById('historyWrap'),
   exportHistoryCsvBtn: document.getElementById('exportHistoryCsvBtn'),
-  clearHistoryBtn: document.getElementById('clearHistoryBtn')
+  clearHistoryBtn: document.getElementById('clearHistoryBtn'),
+
+  // Stage 4.2 capture pickers
+  chatgptPickerCard: document.getElementById('chatgptPickerCard'),
+  chatgptPickerSelect: document.getElementById('chatgptPickerSelect'),
+  chatgptPickerNote: document.getElementById('chatgptPickerNote'),
+  googlePickerCard: document.getElementById('googlePickerCard'),
+  googlePickerSelect: document.getElementById('googlePickerSelect'),
+  googlePickerNote: document.getElementById('googlePickerNote'),
 };
 
 let toastTimer = null;
@@ -174,6 +182,16 @@ let themeMode = 'dark';
 let currentSettings = { ...self.AIQIShared.DEFAULT_SETTINGS };
 // Handle for the auto-refresh setInterval; null when the feature is off.
 let autoRefreshTimer = null;
+
+// Stage 4.2 capture picker state. Archive caches mirror chrome.storage
+// and are refreshed lazily on storage.onChanged. userPickedXxxId is
+// non-null iff the user manually selected a non-latest entry — in that
+// case, incoming live CHATGPT_DATA/GOOGLE_DATA storage events do NOT
+// stomp their view.
+let chatgptArchive = [];
+let googleArchive = [];
+let userPickedChatgptId = null;
+let userPickedGoogleId = null;
 
 function maybeSetFullPageClass() {
   if (isFullPage) document.body.classList.add('full-page');
@@ -707,6 +725,157 @@ function renderCitationStrength(data) {
 //    render* function reads module-scope state set by section 4 (parsed
 //    payload) or section 9 (inspection results).
 // ============================================================================
+
+// --- Stage 4.2 capture picker helpers -------------------------------------
+
+function formatPickerTimestamp(iso) {
+  if (!iso) return 'Unknown';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'Unknown';
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (sameDay) return time;
+  const date = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return `${date} ${time}`;
+}
+
+function buildChatgptPickerLabel(entry, isLatest) {
+  const stamp = formatPickerTimestamp(entry?.capturedAt);
+  const rawPrompt = entry?.latestUserPrompt || entry?.conversationId || 'Untitled conversation';
+  const prompt = sanitizeString(rawPrompt, 60);
+  const suffix = isLatest ? ' · Latest' : '';
+  return `${stamp} — ${prompt}${suffix}`;
+}
+
+function buildGooglePickerLabel(entry, isLatest) {
+  const stamp = formatPickerTimestamp(entry?.capturedAt);
+  const engine = entry?.engineLabel || titleCaseEngine(entry?.engine || '');
+  const query = sanitizeString(entry?.query || 'No query', 60);
+  const suffix = isLatest ? ' · Latest' : '';
+  return `${stamp} — ${engine}: ${query}${suffix}`;
+}
+
+function findArchiveEntryById(archive, id) {
+  if (!id) return null;
+  return archive.find((entry) => entry?.id === id) || null;
+}
+
+function renderChatgptPicker() {
+  const select = els.chatgptPickerSelect;
+  const card = els.chatgptPickerCard;
+  if (!select || !card) return;
+  if (!Array.isArray(chatgptArchive) || chatgptArchive.length === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  const currentId = userPickedChatgptId || lastChatgptData?.id || chatgptArchive[0]?.id || '';
+  select.innerHTML = '';
+  chatgptArchive.forEach((entry, idx) => {
+    if (!entry?.id) return;
+    const opt = document.createElement('option');
+    opt.value = entry.id;
+    opt.textContent = buildChatgptPickerLabel(entry, idx === 0);
+    if (entry.id === currentId) opt.selected = true;
+    select.appendChild(opt);
+  });
+  updateChatgptPickerNote();
+}
+
+function renderGooglePicker() {
+  const select = els.googlePickerSelect;
+  const card = els.googlePickerCard;
+  if (!select || !card) return;
+  if (!Array.isArray(googleArchive) || googleArchive.length === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  const currentId = userPickedGoogleId || lastGoogleData?.id || googleArchive[0]?.id || '';
+  select.innerHTML = '';
+  googleArchive.forEach((entry, idx) => {
+    if (!entry?.id) return;
+    const opt = document.createElement('option');
+    opt.value = entry.id;
+    opt.textContent = buildGooglePickerLabel(entry, idx === 0);
+    if (entry.id === currentId) opt.selected = true;
+    select.appendChild(opt);
+  });
+  updateGooglePickerNote();
+}
+
+function updateChatgptPickerNote() {
+  const note = els.chatgptPickerNote;
+  if (!note) return;
+  if (userPickedChatgptId) {
+    note.hidden = false;
+    note.textContent = 'Viewing an archived capture. New captures stay queued — open the dropdown to return to Latest.';
+  } else {
+    note.hidden = true;
+    note.textContent = '';
+  }
+}
+
+function updateGooglePickerNote() {
+  const note = els.googlePickerNote;
+  if (!note) return;
+  if (userPickedGoogleId) {
+    note.hidden = false;
+    note.textContent = 'Viewing an archived SERP capture. New captures stay queued — open the dropdown to return to Latest.';
+  } else {
+    note.hidden = true;
+    note.textContent = '';
+  }
+}
+
+function handleChatgptPickerChange(selectedId) {
+  if (!selectedId) return;
+  const entry = findArchiveEntryById(chatgptArchive, selectedId);
+  if (!entry) return;
+  const isLatest = chatgptArchive[0]?.id === selectedId;
+  userPickedChatgptId = isLatest ? null : selectedId;
+  lastChatgptData = entry;
+  renderChatgpt(lastChatgptData);
+  renderCombined();
+  renderHistory();
+  updateChatgptPickerNote();
+}
+
+function handleGooglePickerChange(selectedId) {
+  if (!selectedId) return;
+  const entry = findArchiveEntryById(googleArchive, selectedId);
+  if (!entry) return;
+  const isLatest = googleArchive[0]?.id === selectedId;
+  userPickedGoogleId = isLatest ? null : selectedId;
+  lastGoogleData = entry;
+  renderGoogle(lastGoogleData);
+  renderCombined();
+  renderHistory();
+  updateGooglePickerNote();
+}
+
+async function refreshChatgptArchive() {
+  chatgptArchive = await self.AIQIShared.storage.loadChatgptArchive();
+  // If the user had picked an entry that has since been trimmed out of
+  // the archive, drop the pin so they start tracking live again rather
+  // than staring at an orphan id.
+  if (userPickedChatgptId && !findArchiveEntryById(chatgptArchive, userPickedChatgptId)) {
+    userPickedChatgptId = null;
+  }
+  renderChatgptPicker();
+}
+
+async function refreshGoogleArchive() {
+  googleArchive = await self.AIQIShared.storage.loadGoogleArchive();
+  if (userPickedGoogleId && !findArchiveEntryById(googleArchive, userPickedGoogleId)) {
+    userPickedGoogleId = null;
+  }
+  renderGooglePicker();
+}
+
+// --- end picker helpers ---------------------------------------------------
+
 function renderChatgpt(data) {
   // Info-card: user prompt row (moved here from the old Query expansion
   // card, which was duplicating the same text).
@@ -1912,6 +2081,12 @@ function bindEvents() {
     btn.addEventListener('keydown', handleTabKeydown);
   });
   if (els.refreshBtn) els.refreshBtn.addEventListener('click', inspectCurrentTab);
+  if (els.chatgptPickerSelect) {
+    els.chatgptPickerSelect.addEventListener('change', (e) => handleChatgptPickerChange(e.target.value));
+  }
+  if (els.googlePickerSelect) {
+    els.googlePickerSelect.addEventListener('change', (e) => handleGooglePickerChange(e.target.value));
+  }
   if (els.openFullPageBtn) els.openFullPageBtn.addEventListener('click', async () => {
     const currentTab = await getInspectionTargetTab();
     await openFullPageDashboard(true, currentTab?.id || 0, activeView);
@@ -2072,6 +2247,10 @@ async function init() {
   setupCollapsibleSections();
   await hydrateSettingsUI();
   await loadLocalState();
+  // Hydrate picker caches before first render so the dropdowns populate
+  // on open, not on the next capture.
+  await refreshChatgptArchive();
+  await refreshGoogleArchive();
   const params = new URLSearchParams(window.location.search);
   const requestedView = params.get('view');
   if (requestedView && els.tabPanels[requestedView]) activeView = requestedView;
@@ -2084,10 +2263,22 @@ async function init() {
     if (area !== 'local') return;
     const K = self.AIQIShared.STORAGE_KEYS;
     let shouldRender = false;
-    if (changes[K.CHATGPT_DATA]) { lastChatgptData = changes[K.CHATGPT_DATA].newValue || null; shouldRender = true; }
-    if (changes[K.GOOGLE_DATA]) { lastGoogleData = changes[K.GOOGLE_DATA].newValue || null; shouldRender = true; }
+    // Live single-slot updates are suppressed while the user is viewing
+    // an archived entry — otherwise a fresh background capture would
+    // yank them back to the latest without warning.
+    if (changes[K.CHATGPT_DATA] && !userPickedChatgptId) {
+      lastChatgptData = changes[K.CHATGPT_DATA].newValue || null;
+      shouldRender = true;
+    }
+    if (changes[K.GOOGLE_DATA] && !userPickedGoogleId) {
+      lastGoogleData = changes[K.GOOGLE_DATA].newValue || null;
+      shouldRender = true;
+    }
     if (changes[K.HISTORY]) { comparisonHistory = Array.isArray(changes[K.HISTORY].newValue) ? changes[K.HISTORY].newValue : []; shouldRender = true; }
     if (changes[K.ACTIVE_VIEW]) { activeView = changes[K.ACTIVE_VIEW].newValue || activeView; }
+    // Archive changes: refresh the picker dropdown options.
+    if (changes[K.CHATGPT_ARCHIVE]) { refreshChatgptArchive(); }
+    if (changes[K.GOOGLE_ARCHIVE]) { refreshGoogleArchive(); }
     if (shouldRender) {
       renderChatgpt(lastChatgptData);
       renderGoogle(lastGoogleData);

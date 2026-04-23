@@ -42,6 +42,19 @@
     </div>
 
     <section id="panelChatgpt" class="tab-panel" role="tabpanel" aria-labelledby="tabChatgpt" tabindex="0">
+      <!-- Stage 4.2 capture picker. Lets the user review any of the
+           200 most recent ChatGPT captures (auto + manual) without
+           leaving the dashboard. Hidden when the archive is empty. -->
+      <section class="card capture-picker-card" id="chatgptPickerCard" hidden>
+        <div class="section-head compact">
+          <h2><span class="info-head-icon" aria-hidden="true">🕑</span>Viewing capture</h2>
+          <div class="section-actions">
+            <select id="chatgptPickerSelect" class="picker-select" aria-label="Select a captured ChatGPT conversation"></select>
+          </div>
+        </div>
+        <p class="small-note picker-note" id="chatgptPickerNote" hidden></p>
+      </section>
+
       <!-- Consolidated "General information" card replaces four separate
            metric cards (Model / Search origin / Prompt intent / UTM).
            Pattern: label column on the left, value on the right, similar
@@ -181,6 +194,17 @@
     </section>
 
     <section id="panelGoogle" class="tab-panel hidden google-layout" role="tabpanel" aria-labelledby="tabGoogle" tabindex="0">
+      <!-- Stage 4.2 capture picker for Google/Bing/DuckDuckGo SERPs. -->
+      <section class="card capture-picker-card" id="googlePickerCard" hidden>
+        <div class="section-head compact">
+          <h2><span class="info-head-icon" aria-hidden="true">🕑</span>Viewing capture</h2>
+          <div class="section-actions">
+            <select id="googlePickerSelect" class="picker-select" aria-label="Select a captured SERP"></select>
+          </div>
+        </div>
+        <p class="small-note picker-note" id="googlePickerNote" hidden></p>
+      </section>
+
       <section class="summary-grid">
         <article class="card metric-card">
           <span class="metric-label">Query</span>
