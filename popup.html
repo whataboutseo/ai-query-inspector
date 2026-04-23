@@ -393,6 +393,17 @@
           <h2><span class="info-head-icon" aria-hidden="true">📁</span>Saved comparisons</h2>
           <span id="historySummary" class="section-summary hidden"></span>
         </div>
+        <div class="history-search-row">
+          <input
+            type="search"
+            id="historySearchInput"
+            class="history-search-input"
+            placeholder="Filter by query, prompt, engine, or domain…"
+            aria-label="Filter saved comparisons"
+            autocomplete="off"
+          />
+          <span id="historySearchMeta" class="history-search-meta" hidden></span>
+        </div>
         <div id="historyEmpty" class="empty-state">No saved comparisons yet. Capture a ChatGPT conversation and a search results page to create one.</div>
         <div id="historyWrap" class="result-wrap hidden"></div>
       </section>
@@ -430,10 +441,49 @@
         </select>
       </div>
 
+      <div class="settings-row">
+        <div class="settings-row__copy">
+          <label class="settings-row__label" for="historyRetentionSelect">Keep saved comparisons</label>
+          <span class="settings-row__hint">Cap for the History tab. Older comparisons beyond this count are dropped from local storage.</span>
+        </div>
+        <select id="historyRetentionSelect" class="settings-row__select" aria-label="History retention">
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+          <option value="500">500</option>
+        </select>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-row__copy">
+          <label class="settings-row__label" for="archiveRetentionSelect">Keep raw captures per engine</label>
+          <span class="settings-row__hint">Cap for the Viewing capture picker on the ChatGPT and Google tabs. Older captures beyond this count are dropped.</span>
+        </div>
+        <select id="archiveRetentionSelect" class="settings-row__select" aria-label="Archive retention">
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+          <option value="500">500</option>
+          <option value="1000">1000</option>
+        </select>
+      </div>
+
+      <div class="settings-row settings-row--actions">
+        <div class="settings-row__copy">
+          <span class="settings-row__label">Clear archived captures</span>
+          <span class="settings-row__hint">Empties the picker archive only — the currently displayed capture stays in view until you refresh.</span>
+        </div>
+        <div class="settings-row__actions">
+          <button id="clearChatgptArchiveBtn" class="ghost-btn danger-ghost" type="button">Clear ChatGPT</button>
+          <button id="clearGoogleArchiveBtn" class="ghost-btn danger-ghost" type="button">Clear Google</button>
+        </div>
+      </div>
+
       <ul class="note-list">
         <li>ChatGPT conversations are parsed locally on this device. When auto-capture is on, parsing happens as soon as the conversation tab finishes loading; when off, nothing is read until you open this popup and click <strong>Refresh</strong>.</li>
-        <li>Search pages (Google, Bing, DuckDuckGo) are captured only when you open this popup on that tab — the extension has no standing access to search domains.</li>
-        <li>Stored locally on this device: the latest ChatGPT conversation (prompts, fan-out queries, cited URLs) and the latest SERP snapshot.</li>
+        <li>Search pages (Google, Bing, DuckDuckGo) are captured either from the currently open search tab, or when you use the <em>Open Google for prompt</em> handoff — in that flow the service worker auto-captures the SERP after the Google tab finishes loading.</li>
+        <li>Stored locally on this device: the latest single-slot ChatGPT / SERP snapshot, plus a timestamped archive of every capture (the picker reads from this).</li>
         <li>Sends nothing off-device. No analytics. No cloud sync.</li>
       </ul>
     </section>

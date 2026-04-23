@@ -155,8 +155,14 @@ const els = {
   historySummary: document.getElementById('historySummary'),
   historyEmpty: document.getElementById('historyEmpty'),
   historyWrap: document.getElementById('historyWrap'),
+  historySearchInput: document.getElementById('historySearchInput'),
+  historySearchMeta: document.getElementById('historySearchMeta'),
   exportHistoryCsvBtn: document.getElementById('exportHistoryCsvBtn'),
   clearHistoryBtn: document.getElementById('clearHistoryBtn'),
+  historyRetentionSelect: document.getElementById('historyRetentionSelect'),
+  archiveRetentionSelect: document.getElementById('archiveRetentionSelect'),
+  clearChatgptArchiveBtn: document.getElementById('clearChatgptArchiveBtn'),
+  clearGoogleArchiveBtn: document.getElementById('clearGoogleArchiveBtn'),
 
   // Stage 4.2 capture pickers
   chatgptPickerCard: document.getElementById('chatgptPickerCard'),
@@ -192,6 +198,8 @@ let chatgptArchive = [];
 let googleArchive = [];
 let userPickedChatgptId = null;
 let userPickedGoogleId = null;
+// Stage 4.4 history filter. Lowercased for case-insensitive matching.
+let historySearchTerm = '';
 
 function maybeSetFullPageClass() {
   if (isFullPage) document.body.classList.add('full-page');
@@ -876,6 +884,63 @@ async function refreshGoogleArchive() {
 
 // --- end picker helpers ---------------------------------------------------
 
+// --- Stage 4.4 history / retention helpers --------------------------------
+
+function removeHistoryEntry(matchKey) {
+  if (!matchKey) return;
+  const before = comparisonHistory.length;
+  comparisonHistory = comparisonHistory.filter((h) => (h.id || h.savedAt) !== matchKey);
+  if (comparisonHistory.length === before) return;
+  // Clear the fingerprint so the next capture of the same query is
+  // re-saved rather than suppressed by the dedup check.
+  lastSavedFingerprint = '';
+  renderHistory();
+  saveLocalState().catch(() => {});
+  showToast('Saved comparison removed');
+}
+
+async function handleHistoryRetentionChange(value) {
+  const cap = Number(value) || 100;
+  currentSettings = await self.AIQIShared.setSettings({ historyRetention: cap });
+  if (Array.isArray(comparisonHistory) && comparisonHistory.length > cap) {
+    comparisonHistory = comparisonHistory.slice(0, cap);
+    renderHistory();
+    await saveLocalState();
+    showToast(`Trimmed to the ${cap} most recent comparisons`);
+  } else {
+    showToast(`History cap set to ${cap}`);
+  }
+}
+
+async function handleArchiveRetentionChange(value) {
+  const cap = Number(value) || 200;
+  currentSettings = await self.AIQIShared.setSettings({ archiveRetention: cap });
+  // Trim in-place so the user sees the new limit immediately, not
+  // only when the next capture lands.
+  await self.AIQIShared.storage.trimChatgptArchive(cap);
+  await self.AIQIShared.storage.trimGoogleArchive(cap);
+  await refreshChatgptArchive();
+  await refreshGoogleArchive();
+  showToast(`Archive cap set to ${cap} per engine`);
+}
+
+async function handleClearChatgptArchive() {
+  await self.AIQIShared.storage.clearChatgptArchive();
+  await refreshChatgptArchive();
+  // Drop any pin that was pointing into the now-empty archive.
+  userPickedChatgptId = null;
+  showToast('ChatGPT archive cleared');
+}
+
+async function handleClearGoogleArchive() {
+  await self.AIQIShared.storage.clearGoogleArchive();
+  await refreshGoogleArchive();
+  userPickedGoogleId = null;
+  showToast('Google archive cleared');
+}
+
+// --- end history / retention helpers --------------------------------------
+
 function renderChatgpt(data) {
   // Info-card: user prompt row (moved here from the old Query expansion
   // card, which was duplicating the same text).
@@ -1364,7 +1429,8 @@ function persistHistorySnapshot() {
     }
   };
 
-  comparisonHistory = [entry, ...comparisonHistory.filter((item) => item.id !== entry.id)].slice(0, 100);
+  const historyCap = Number(currentSettings?.historyRetention) || 100;
+  comparisonHistory = [entry, ...comparisonHistory.filter((item) => item.id !== entry.id)].slice(0, historyCap);
   lastSavedFingerprint = fingerprint;
   saveLocalState().catch(() => {});
 }
@@ -1434,13 +1500,46 @@ function renderHistory() {
   els.historyEngineCount.textContent = String(new Set(history.map((h) => h.engineLabel || h.engine).filter(Boolean)).size);
   els.historyLatestOverlap.textContent = history.length ? `${history[0].overlapScore}%` : '0%';
   els.historyWrap.innerHTML = '';
-  els.historyEmpty.classList.toggle('hidden', history.length > 0);
-  els.historyWrap.classList.toggle('hidden', history.length === 0);
-  els.historySummary.classList.toggle('hidden', history.length === 0);
-  els.historySummary.textContent = history.length ? `${history.length} saved local comparison${history.length === 1 ? '' : 's'}` : '';
 
-  // Pre-bucket history by query so each card can render a sparkline of
-  // overlap-over-time for its own query.
+  // Stage 4.4 search filter. Match is a case-insensitive substring test
+  // across query, prompt, engine label, model, and captured domains so
+  // users can find runs by any of those facets without a chip picker.
+  const term = historySearchTerm.trim().toLowerCase();
+  const matches = term
+    ? history.filter((h) => {
+        const haystack = [
+          h.query, h.prompt, h.engineLabel, h.engine, h.model, h.browser,
+          ...(Array.isArray(h.googleDomains) ? h.googleDomains : []),
+          ...(Array.isArray(h.chatgptDomains) ? h.chatgptDomains : []),
+        ].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(term);
+      })
+    : history;
+
+  const hasAny = history.length > 0;
+  const hasVisible = matches.length > 0;
+  els.historyEmpty.classList.toggle('hidden', hasAny);
+  els.historyWrap.classList.toggle('hidden', !hasVisible);
+  els.historySummary.classList.toggle('hidden', !hasAny);
+  els.historySummary.textContent = hasAny
+    ? `${matches.length} of ${history.length} saved local comparison${history.length === 1 ? '' : 's'}`
+    : '';
+
+  if (els.historySearchMeta) {
+    if (term && hasAny) {
+      els.historySearchMeta.hidden = false;
+      els.historySearchMeta.textContent = hasVisible
+        ? `${matches.length} match${matches.length === 1 ? '' : 'es'}`
+        : 'No matches';
+    } else {
+      els.historySearchMeta.hidden = true;
+      els.historySearchMeta.textContent = '';
+    }
+  }
+
+  // Pre-bucket full history by query so each card can render a sparkline
+  // of overlap-over-time for its own query — sparklines should show the
+  // full series even when the list itself is filtered.
   const byQuery = new Map();
   history.forEach((h) => {
     const key = (h.query || '').toLowerCase();
@@ -1453,7 +1552,7 @@ function renderHistory() {
     list.sort((a, b) => String(a.savedAt || '').localeCompare(String(b.savedAt || '')));
   }
 
-  history.forEach((item) => {
+  matches.forEach((item) => {
     const card = document.createElement('div');
     card.className = 'result-row history-card';
 
@@ -1482,6 +1581,21 @@ function renderHistory() {
     const series = (byQuery.get((item.query || '').toLowerCase()) || []).map((h) => Number(h.overlapScore) || 0);
     const spark = buildOverlapSparkline(series);
     if (spark) overlapWrap.appendChild(spark);
+
+    // Stage 4.4 per-entry delete. Uses the stable entry id
+    // (fingerprint from persistHistorySnapshot) so filtered-view
+    // deletes still target the right row.
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'history-delete-btn';
+    deleteBtn.setAttribute('aria-label', `Delete saved comparison: ${item.query || 'Untitled query'}`);
+    deleteBtn.title = 'Delete this comparison';
+    deleteBtn.textContent = '×';
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeHistoryEntry(item.id || item.savedAt);
+    });
+    overlapWrap.appendChild(deleteBtn);
 
     top.appendChild(titleWrap);
     top.appendChild(overlapWrap);
@@ -1997,7 +2111,7 @@ async function inspectCurrentTab() {
       if (!result) return setStatus('No data returned from the page.', 'error');
       if (result.error) return setStatus(result.error, 'error');
       lastChatgptData = { ...parseChatgptPayload(result.payload), conversationId: result.conversationId, pageUrl: result.pageUrl || tab.url || '', browser: getBrowserLabel(), capturedAt: new Date().toISOString() };
-      const archivedChatgpt = await self.AIQIShared.storage.appendChatgptCapture(lastChatgptData);
+      const archivedChatgpt = await self.AIQIShared.storage.appendChatgptCapture(lastChatgptData, { cap: Number(currentSettings?.archiveRetention) || undefined });
       if (archivedChatgpt?.id) lastChatgptData.id = archivedChatgpt.id;
       await self.AIQIShared.storage.savePendingChatgptSnapshot(lastChatgptData);
       await saveLocalState();
@@ -2021,7 +2135,7 @@ async function inspectCurrentTab() {
       if (!result) return setStatus('No data returned from the search page.', 'error');
       if (result.error) return setStatus(result.error, 'error');
       lastGoogleData = { ...parseGooglePayload(result, pendingGoogleQuery), pageUrl: result.pageUrl || tab.url || '', browser: getBrowserLabel() };
-      const archivedGoogle = await self.AIQIShared.storage.appendGoogleCapture(lastGoogleData);
+      const archivedGoogle = await self.AIQIShared.storage.appendGoogleCapture(lastGoogleData, { cap: Number(currentSettings?.archiveRetention) || undefined });
       if (archivedGoogle?.id) lastGoogleData.id = archivedGoogle.id;
       await self.AIQIShared.storage.clearPendingGoogleQuery();
       await saveLocalState();
@@ -2086,6 +2200,18 @@ function bindEvents() {
   }
   if (els.googlePickerSelect) {
     els.googlePickerSelect.addEventListener('change', (e) => handleGooglePickerChange(e.target.value));
+  }
+  if (els.historySearchInput) {
+    els.historySearchInput.addEventListener('input', (e) => {
+      historySearchTerm = String(e.target.value || '');
+      renderHistory();
+    });
+  }
+  if (els.clearChatgptArchiveBtn) {
+    els.clearChatgptArchiveBtn.addEventListener('click', handleClearChatgptArchive);
+  }
+  if (els.clearGoogleArchiveBtn) {
+    els.clearGoogleArchiveBtn.addEventListener('click', handleClearGoogleArchive);
   }
   if (els.openFullPageBtn) els.openFullPageBtn.addEventListener('click', async () => {
     const currentTab = await getInspectionTargetTab();
@@ -2213,6 +2339,15 @@ async function hydrateSettingsUI() {
     });
   }
 
+  if (els.historyRetentionSelect) {
+    els.historyRetentionSelect.value = String(currentSettings.historyRetention || 100);
+    els.historyRetentionSelect.addEventListener('change', () => handleHistoryRetentionChange(els.historyRetentionSelect.value));
+  }
+  if (els.archiveRetentionSelect) {
+    els.archiveRetentionSelect.value = String(currentSettings.archiveRetention || 200);
+    els.archiveRetentionSelect.addEventListener('change', () => handleArchiveRetentionChange(els.archiveRetentionSelect.value));
+  }
+
   // React to settings changes made from another popup instance (e.g.
   // the full-page dashboard open in another tab flipping the toggle).
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -2222,6 +2357,8 @@ async function hydrateSettingsUI() {
     if (autoToggle) autoToggle.checked = !!currentSettings.autoCaptureChatgpt;
     if (regDomainToggle) regDomainToggle.checked = currentSettings.matchByRegisteredDomain !== false;
     if (autoRefreshSelect) autoRefreshSelect.value = String(currentSettings.autoRefreshSeconds || 0);
+    if (els.historyRetentionSelect) els.historyRetentionSelect.value = String(currentSettings.historyRetention || 100);
+    if (els.archiveRetentionSelect) els.archiveRetentionSelect.value = String(currentSettings.archiveRetention || 200);
     applyAutoRefresh();
     renderCombined();
   });

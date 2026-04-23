@@ -1012,7 +1012,7 @@
     // instead of appending a content-duplicate. Returns the stored entry.
     async appendChatgptCapture(record, options = {}) {
       if (!record || typeof record !== 'object') return null;
-      const { skipIfUnchanged = false } = options;
+      const { skipIfUnchanged = false, cap } = options;
       const archive = await this.loadChatgptArchive();
       if (skipIfUnchanged && archive.length) {
         const prevSig = chatgptCaptureSignature(archive[0]);
@@ -1024,14 +1024,15 @@
         id: record.id || generateCaptureId(),
         capturedAt: record.capturedAt || new Date().toISOString(),
       };
-      const next = [entry, ...archive].slice(0, ARCHIVE_MAX_ENTRIES);
+      const effectiveCap = Number.isFinite(cap) && cap > 0 ? cap : ARCHIVE_MAX_ENTRIES;
+      const next = [entry, ...archive].slice(0, effectiveCap);
       await this.set({ [STORAGE_KEYS.CHATGPT_ARCHIVE]: next });
       return entry;
     },
 
     async appendGoogleCapture(record, options = {}) {
       if (!record || typeof record !== 'object') return null;
-      const { skipIfUnchanged = false } = options;
+      const { skipIfUnchanged = false, cap } = options;
       const archive = await this.loadGoogleArchive();
       if (skipIfUnchanged && archive.length) {
         const prevSig = googleCaptureSignature(archive[0]);
@@ -1043,9 +1044,32 @@
         id: record.id || generateCaptureId(),
         capturedAt: record.capturedAt || new Date().toISOString(),
       };
-      const next = [entry, ...archive].slice(0, ARCHIVE_MAX_ENTRIES);
+      const effectiveCap = Number.isFinite(cap) && cap > 0 ? cap : ARCHIVE_MAX_ENTRIES;
+      const next = [entry, ...archive].slice(0, effectiveCap);
       await this.set({ [STORAGE_KEYS.GOOGLE_ARCHIVE]: next });
       return entry;
+    },
+
+    // Selective clears — do not touch the single-slot CHATGPT_DATA /
+    // GOOGLE_DATA keys so the current view stays intact.
+    clearChatgptArchive() { return this.remove(STORAGE_KEYS.CHATGPT_ARCHIVE); },
+    clearGoogleArchive()  { return this.remove(STORAGE_KEYS.GOOGLE_ARCHIVE); },
+
+    // Trim the archive in-place to the new cap. Used when the user
+    // lowers archiveRetention from the settings UI — the caller should
+    // invoke this immediately so the reduction is reflected now, not
+    // only on the next capture.
+    async trimChatgptArchive(cap) {
+      if (!Number.isFinite(cap) || cap < 0) return;
+      const archive = await this.loadChatgptArchive();
+      if (archive.length <= cap) return;
+      await this.set({ [STORAGE_KEYS.CHATGPT_ARCHIVE]: archive.slice(0, cap) });
+    },
+    async trimGoogleArchive(cap) {
+      if (!Number.isFinite(cap) || cap < 0) return;
+      const archive = await this.loadGoogleArchive();
+      if (archive.length <= cap) return;
+      await this.set({ [STORAGE_KEYS.GOOGLE_ARCHIVE]: archive.slice(0, cap) });
     },
     saveActiveView(value)  { return this.set({ [STORAGE_KEYS.ACTIVE_VIEW]: value }); },
     saveHistory(value)     { return this.set({ [STORAGE_KEYS.HISTORY]: value }); },
@@ -1104,6 +1128,12 @@
     // another tab: flip this on and the dashboard re-captures on a
     // timer instead of requiring you to click Refresh every minute.
     autoRefreshSeconds: 0,
+    // Retention caps. User-visible in the Privacy & safety card.
+    // historyRetention applies to the per-query comparison history
+    // shown on the History tab. archiveRetention applies to the raw
+    // per-engine capture archive (the source of the picker).
+    historyRetention: 100,
+    archiveRetention: 200,
   });
 
   async function getSettings() {

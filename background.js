@@ -69,7 +69,10 @@ async function maybeCaptureTab(tabId, url) {
         // skipIfUnchanged avoids spamming the archive when chrome.tabs
         // onUpdated fires multiple `complete` events for a single page
         // load (the conversation content is identical across those).
-        await storage.appendChatgptCapture(parsed, { skipIfUnchanged: true });
+        await storage.appendChatgptCapture(parsed, {
+          skipIfUnchanged: true,
+          cap: Number(settings?.archiveRetention) || undefined,
+        });
       }
     }
   } catch {
@@ -118,7 +121,10 @@ async function maybeOrchestrateGoogleCapture(tabId, url) {
       browser: 'Background capture',
     };
     await storage.saveGoogleData(record);
-    await storage.appendGoogleCapture(record);
+    const settings = await getSettings();
+    await storage.appendGoogleCapture(record, {
+      cap: Number(settings?.archiveRetention) || undefined,
+    });
     await storage.clearPendingGoogleOrchestration();
   } catch {
     // Best-effort: swallow so a single failure can't break the worker.
