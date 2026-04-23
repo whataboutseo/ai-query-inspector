@@ -141,6 +141,9 @@ const els = {
   copyCombinedBtn: document.getElementById('copyCombinedBtn'),
   exportCombinedCsvBtn: document.getElementById('exportCombinedCsvBtn'),
   exportSeoToolCsvBtn: document.getElementById('exportSeoToolCsvBtn'),
+  aioCrossrefCard: document.getElementById('aioCrossrefCard'),
+  aioCrossrefSummary: document.getElementById('aioCrossrefSummary'),
+  aioCrossrefWrap: document.getElementById('aioCrossrefWrap'),
 
   // History
   historyRunCount: document.getElementById('historyRunCount'),
@@ -950,6 +953,25 @@ function parseGooglePayload(raw, fallbackQuery = '') {
   const uniqueDomains = [...new Set(cleanedResults.map((item) => item.domain))];
   const engine = sanitizeString(raw.engine || '', 80).toLowerCase() || 'google';
   const serpFeatures = normalizeFeatureList(raw.serpFeatures || []);
+
+  // Stage 3.4: AI Overview citation sources extracted in the page
+  // context. Dedupe by domain+title so repeat links (an AIO often
+  // references the same source from multiple paragraphs) collapse.
+  const rawAio = Array.isArray(raw.aioSources) ? raw.aioSources : [];
+  const aioSeen = new Set();
+  const aioSources = [];
+  for (const item of rawAio) {
+    const domain = normalizeDomain(item?.domain || '');
+    const title = sanitizeString(item?.title || '', 300);
+    const url = sanitizeString(item?.url || '', 1500);
+    if (!domain || !url) continue;
+    const key = `${domain}||${title}`;
+    if (aioSeen.has(key)) continue;
+    aioSeen.add(key);
+    aioSources.push({ domain, title, url });
+    if (aioSources.length >= 20) break;
+  }
+
   return {
     engine,
     engineLabel: titleCaseEngine(engine),
@@ -959,6 +981,7 @@ function parseGooglePayload(raw, fallbackQuery = '') {
     uniqueDomains,
     serpFeatures,
     results: cleanedResults,
+    aioSources,
     capturedAt: new Date().toISOString()
   };
 }
@@ -1377,6 +1400,7 @@ function renderCombined() {
     els.combinedOverlapCount.textContent = '0';
     els.combinedChatgptOnlyCount.textContent = '0';
     els.combinedGoogleOnlyCount.textContent = '0';
+    if (els.aioCrossrefCard) els.aioCrossrefCard.classList.add('hidden');
     els.combinedQueryLabel.textContent = 'None';
     els.combinedEmpty.classList.remove('hidden');
     els.combinedWrap.classList.add('hidden');
@@ -1400,6 +1424,54 @@ function renderCombined() {
   els.combinedQueryLabel.textContent = data.query || 'None';
   els.combinedEmpty.classList.add('hidden');
   els.combinedWrap.classList.remove('hidden');
+
+  // Stage 3.4: AI Overview cross-reference. When the captured SERP had
+  // an AI Overview, show each of its citation sources and flag the
+  // ones ChatGPT also cited. Uses the same fold as buildCombinedData
+  // so the membership check matches the Combined tab's numbers.
+  if (els.aioCrossrefCard) {
+    const aio = Array.isArray(lastGoogleData?.aioSources) ? lastGoogleData.aioSources : [];
+    if (aio.length === 0) {
+      els.aioCrossrefCard.classList.add('hidden');
+    } else {
+      const byReg = currentSettings?.matchByRegisteredDomain !== false;
+      const fold = (host) => byReg
+        ? self.AIQIShared.registeredDomain(host || '')
+        : self.AIQIShared.normalizeDomain(host || '');
+      const chatSet = new Set((lastChatgptData?.uniqueDomains || []).map(fold).filter(Boolean));
+      let matches = 0;
+      els.aioCrossrefWrap.innerHTML = '';
+      aio.forEach((src) => {
+        const folded = fold(src.domain);
+        const shared = chatSet.has(folded);
+        if (shared) matches += 1;
+        const row = document.createElement('a');
+        row.className = 'aio-row' + (shared ? ' aio-row--shared' : '');
+        row.href = src.url;
+        row.target = '_blank';
+        row.rel = 'noopener noreferrer';
+        const mark = document.createElement('span');
+        mark.className = 'aio-row__mark';
+        mark.textContent = shared ? '✓' : '·';
+        mark.title = shared ? 'Also cited by ChatGPT' : 'Not cited by ChatGPT';
+        const body = document.createElement('div');
+        body.className = 'aio-row__body';
+        const title = document.createElement('div');
+        title.className = 'aio-row__title';
+        title.textContent = src.title || src.domain;
+        const meta = document.createElement('div');
+        meta.className = 'aio-row__meta';
+        meta.textContent = folded;
+        body.appendChild(title);
+        body.appendChild(meta);
+        row.appendChild(mark);
+        row.appendChild(body);
+        els.aioCrossrefWrap.appendChild(row);
+      });
+      els.aioCrossrefSummary.textContent = `${matches} of ${aio.length} AI Overview sources also cited by ChatGPT`;
+      els.aioCrossrefCard.classList.remove('hidden');
+    }
+  }
 
   const table = document.createElement('div');
   table.className = 'comparison-table';
@@ -1770,6 +1842,11 @@ async function fetchSearchResultsInPage() {
     const url = new URL(window.location.href);
     const host = norm(url.hostname);
     const featureSet = new Set();
+    // Stage 3.4: accumulate Google AI Overview citation sources here so
+    // they can be cross-referenced against ChatGPT's citations in the
+    // Combined tab. Populated only when the AI Overview feature is
+    // detected; otherwise remains an empty array.
+    const aioSources = [];
     // Helper: detect a SERP feature by trying each selector in `selectors`.
     // DOM-based detection replaces the old bodyText regex approach, which
     // produced false positives whenever a user's query contained phrases
@@ -1850,11 +1927,40 @@ async function fetchSearchResultsInPage() {
       // Google SERP-feature detection via DOM hooks. We prefer structural
       // selectors over text scanning so a user's own query can't trigger
       // false positives.
-      if (hasAny([
+      const aioSelectors = [
         '#ai-overview', '#AI-Overview', '[data-attrid="AIOverviewTitle"]',
         '[aria-label*="AI Overview" i]', 'div[data-attrid*="overview" i]',
         'div[jscontroller][data-q]'
-      ])) featureSet.add('AI Overview');
+      ];
+      if (hasAny(aioSelectors)) featureSet.add('AI Overview');
+
+      // Stage 3.4: extract the citation sources Google's AI Overview
+      // surfaces so we can later cross-reference them with ChatGPT's
+      // citations. AIO links typically live inside the overview
+      // container as anchors with href starting with http(s). We limit
+      // to the first 20 to keep the payload bounded.
+      const aioContainer = aioSelectors.map((s) => {
+        try { return document.querySelector(s); } catch { return null; }
+      }).find(Boolean);
+      if (aioContainer) {
+        const anchors = aioContainer.querySelectorAll('a[href^="http"]');
+        let added = 0;
+        for (const a of anchors) {
+          if (added >= 20) break;
+          const href = a.href || '';
+          if (!href) continue;
+          let parsed;
+          try { parsed = new URL(href); } catch { continue; }
+          const domain = norm(parsed.hostname);
+          if (!domain || /(^|\.)google\./i.test(domain)) continue;
+          const title = clean(a.textContent || a.getAttribute('aria-label') || '', 300);
+          if (!title) continue;
+          // Store under a separate key so it rides alongside organic
+          // results without being counted as one of them.
+          aioSources.push({ title, url: href, domain });
+          added += 1;
+        }
+      }
       if (hasAny([
         '.hgKElc', '.xpdopen .DKV0Md', '[data-attrid="wa:/description"]',
         '.ifM9O', '.kp-blk > div:first-child'
@@ -1938,7 +2044,7 @@ async function fetchSearchResultsInPage() {
     }
 
     const results = candidates.slice(0, 10).map((item, index) => ({ rank: index + 1, ...item }));
-    return { engine, query, serpFeatures: [...featureSet], results, pageUrl: window.location.href };
+    return { engine, query, serpFeatures: [...featureSet], results, aioSources, pageUrl: window.location.href };
   } catch (error) {
     return { error: `Search page read failed: ${error?.message || 'Unknown error'}` };
   }

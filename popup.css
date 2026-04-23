@@ -2053,3 +2053,78 @@ body.light-mode .expansion-domain-chip  {
 body.light-mode .history-spark line[stroke-dasharray] {
   stroke: rgba(13, 28, 74, 0.18) !important;
 }
+
+/* -----------------------------------------------------------------------
+   AI Overview cross-reference (stage 3.4).
+   Lists Google AIO citation sources and marks the ones ChatGPT also
+   cited with a green check.
+   ----------------------------------------------------------------------- */
+.aio-card { padding-bottom: 8px; }
+.aio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.aio-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  color: var(--text, #e7ecf7);
+  text-decoration: none;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.aio-row:hover {
+  background: rgba(255,255,255,0.07);
+}
+.aio-row:focus-visible {
+  outline: 2px solid var(--accent, #78a8ff);
+  outline-offset: 2px;
+}
+.aio-row--shared {
+  border-color: rgba(40, 196, 143, 0.4);
+  background: rgba(40, 196, 143, 0.06);
+}
+.aio-row__mark {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+  min-width: 18px;
+  text-align: center;
+  color: var(--muted, #9aa3b2);
+}
+.aio-row--shared .aio-row__mark {
+  color: #28c48f;
+}
+.aio-row__body { min-width: 0; flex: 1; }
+.aio-row__title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.aio-row__meta {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--muted, #9aa3b2);
+  margin-top: 2px;
+}
+body.light-mode .aio-row {
+  background: rgba(13, 28, 74, 0.03) !important;
+  border-color: rgba(13, 28, 74, 0.12) !important;
+  color: #13255d !important;
+}
+body.light-mode .aio-row:hover {
+  background: rgba(13, 28, 74, 0.06) !important;
+}
+body.light-mode .aio-row--shared {
+  background: rgba(40, 196, 143, 0.08) !important;
+  border-color: rgba(40, 196, 143, 0.38) !important;
+}
+body.light-mode .aio-row__meta { color: #3d4e86 !important; }
+body.light-mode .aio-row__mark { color: #3d4e86 !important; }
+body.light-mode .aio-row--shared .aio-row__mark { color: #1b7a58 !important; }
