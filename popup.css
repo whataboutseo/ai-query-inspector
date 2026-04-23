@@ -41,6 +41,12 @@ html, body {
 body.full-page, body.full-page html { width: 100%; }
 body.full-page .dashboard { max-width: var(--dash-max); margin: 20px auto; }
 
+/* Stage 5.7: swap shell by context.
+   - Popup (default): show #popupShell, hide .dashboard
+   - Full-page (body.full-page): hide #popupShell, show .dashboard */
+body:not(.full-page) .dashboard { display: none; }
+body.full-page #popupShell { display: none; }
+
 .section-actions, .export-actions {
   display: flex;
   gap: 6px;

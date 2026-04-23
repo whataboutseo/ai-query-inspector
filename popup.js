@@ -957,6 +957,143 @@ async function handleClearGoogleArchive() {
 
 // --- end history / retention helpers --------------------------------------
 
+// --- Stage 5.7 popup-shell renderer ---------------------------------------
+
+// Writes lastChatgptData + lastGoogleData into the compact popup DOM
+// (id="popupShell"). The dashboard renderers run as well — this just
+// paints the different shell the user sees when the extension is
+// opened as a browser popup rather than the full-page dashboard.
+function populatePopup() {
+  if (typeof document === 'undefined') return;
+  const shell = document.getElementById('popupShell');
+  if (!shell) return;
+
+  const prompt = lastChatgptData?.latestUserPrompt || '';
+  const quote = document.getElementById('popupQuote');
+  const eyebrow = document.getElementById('popupEyebrow');
+  if (quote) quote.textContent = prompt || 'Open a ChatGPT conversation to see it here.';
+  if (eyebrow) {
+    const title = sanitizeString(lastChatgptData?.title || '', 80);
+    eyebrow.textContent = title ? `CHAT · ${title.toUpperCase()}` : (prompt ? 'LAST PROMPT' : 'NO PROMPT YET');
+  }
+
+  // Brand model pill — short for 580px layout.
+  const modelPill = document.getElementById('popupModelPill');
+  if (modelPill) {
+    const model = sanitizeString(lastChatgptData?.model || '', 60);
+    modelPill.textContent = model || 'claude';
+  }
+
+  // Hero retrieval intensity.
+  const q = lastChatgptData?.queries?.length || 0;
+  const c = lastChatgptData?.citedSources || 0;
+  const s = lastChatgptData?.uniqueDomains?.length || 0;
+  const heroValue = document.getElementById('popupHeroValue');
+  const heroSub = document.getElementById('popupHeroSub');
+  if (heroValue) heroValue.textContent = String(q);
+  if (heroSub) heroSub.textContent = `fan-outs · ${c} cites · ${s} sites`;
+
+  // Mini-stats strip. Overlap cell shows F1 score when both sides captured.
+  const miniFan = document.getElementById('popupMiniFanouts');
+  const miniCites = document.getElementById('popupMiniCites');
+  const miniSites = document.getElementById('popupMiniSites');
+  const miniOverlap = document.getElementById('popupMiniOverlap');
+  if (miniFan) miniFan.textContent = String(q);
+  if (miniCites) miniCites.textContent = String(c);
+  if (miniSites) miniSites.textContent = String(s);
+  if (miniOverlap) {
+    const combined = buildCombinedData();
+    miniOverlap.textContent = combined ? `${combined.f1Score}%` : '—';
+  }
+
+  // Fan-out queries pop-section.
+  const fanoutList = document.getElementById('popupFanoutList');
+  const fanoutEmpty = document.getElementById('popupFanoutEmpty');
+  const fanoutMeta = document.getElementById('popupFanoutMeta');
+  const queries = lastChatgptData?.queries || [];
+  if (fanoutList) {
+    fanoutList.innerHTML = '';
+    queries.slice(0, 5).forEach((item, i) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: var(--fs-body-sm);';
+      if (i === Math.min(queries.length - 1, 4)) row.style.borderBottom = 'none';
+      const idx = document.createElement('span');
+      idx.style.cssText = 'font-family: var(--font-mono); font-size: var(--fs-eyebrow); color: var(--ink-4); text-align: right;';
+      idx.textContent = String(i + 1).padStart(2, '0');
+      const text = document.createElement('span');
+      text.style.color = 'var(--ink)';
+      text.textContent = item.q;
+      row.appendChild(idx);
+      row.appendChild(text);
+      fanoutList.appendChild(row);
+    });
+  }
+  if (fanoutEmpty) fanoutEmpty.hidden = queries.length > 0;
+  if (fanoutMeta) fanoutMeta.textContent = queries.length
+    ? `${queries.length} QUERIES${queries.length > 5 ? ' · TOP 5' : ''}`
+    : 'NONE';
+
+  // Top cited sources pop-section — design-system .src-row markup.
+  const sourcesList = document.getElementById('popupSourcesList');
+  const sourcesEmpty = document.getElementById('popupSourcesEmpty');
+  const sourcesMeta = document.getElementById('popupSourcesMeta');
+  const sources = (lastChatgptData?.sources || []).slice(0, 5);
+  if (sourcesList) {
+    sourcesList.innerHTML = '';
+    sources.forEach((src) => {
+      const row = document.createElement('div');
+      row.className = 'src-row';
+      const fav = document.createElement('span');
+      fav.className = 'fav';
+      fav.setAttribute('aria-hidden', 'true');
+      const body = document.createElement('div');
+      const domain = document.createElement('div');
+      domain.className = 'domain';
+      domain.textContent = src.domain || 'source';
+      const title = document.createElement('div');
+      title.style.cssText = 'color: var(--ink-2); font-size: var(--fs-body-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 380px;';
+      title.textContent = src.title || src.url || '';
+      body.appendChild(domain);
+      body.appendChild(title);
+      const type = document.createElement('span');
+      const cited = (src.citedCount || 0) > 0;
+      type.className = `type ${cited ? 'type-cited' : 'type-considered'}`;
+      type.textContent = cited ? 'CITED' : 'CONS.';
+      const mentions = document.createElement('span');
+      mentions.className = 'mentions';
+      mentions.textContent = `${src.count || 0}×`;
+      row.appendChild(fav);
+      row.appendChild(body);
+      row.appendChild(type);
+      row.appendChild(mentions);
+      sourcesList.appendChild(row);
+    });
+  }
+  if (sourcesEmpty) sourcesEmpty.hidden = sources.length > 0;
+  if (sourcesMeta) {
+    const totalSources = lastChatgptData?.sources?.length || 0;
+    sourcesMeta.textContent = totalSources
+      ? `${totalSources} TOTAL${totalSources > 5 ? ' · TOP 5' : ''}`
+      : 'NONE';
+  }
+
+  // Compare-with-Google prominent section meta.
+  const compareMeta = document.getElementById('popupCompareMeta');
+  const compareCopy = document.getElementById('popupCompareCopy');
+  if (lastGoogleData?.resultCount) {
+    const combined = buildCombinedData();
+    if (compareMeta) compareMeta.textContent = combined ? `${combined.f1Score}% F1` : 'Captured';
+    if (compareCopy) compareCopy.textContent = combined
+      ? `${combined.overlap.length} of ${combined.overlap.length + combined.chatOnly.length} ChatGPT sites also appear in Google. Open Compare for details.`
+      : 'SERP captured. Open the dashboard for the breakdown.';
+  } else {
+    if (compareMeta) compareMeta.textContent = 'Not captured';
+    if (compareCopy) compareCopy.textContent = 'Open the latest prompt on Google and see overlap, precision, and missed citations.';
+  }
+}
+
+// --- end popup-shell renderer ---------------------------------------------
+
 function formatRelativeCapturedAt(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -2407,6 +2544,7 @@ async function inspectCurrentTab() {
       renderChatgpt(lastChatgptData);
       renderCombined();
       renderHistory();
+      populatePopup();
       setStatus(`Loaded ChatGPT conversation.${lastChatgptData.hiddenLikely ? ' Some live tool calls may still be missing from this payload.' : ''}`, 'ok');
       if (!isFullPage) switchTab('chatgpt');
       return;
@@ -2432,6 +2570,7 @@ async function inspectCurrentTab() {
       renderGoogle(lastGoogleData);
       renderCombined();
       renderHistory();
+      populatePopup();
       setStatus(`Captured ${lastGoogleData.resultCount} ${lastGoogleData.engineLabel || 'search'} results locally.`, 'ok');
       if (!isFullPage) switchTab('google');
       return;
@@ -2504,6 +2643,37 @@ function bindEvents() {
       renderHistory();
     });
   }
+
+  // Stage 5.7: popup-shell action wiring. These buttons mirror the
+  // dashboard actions but live on the compact popup-only layout.
+  const popupRefresh = document.getElementById('popupRefreshBtn');
+  if (popupRefresh) popupRefresh.addEventListener('click', inspectCurrentTab);
+  const popupExport = document.getElementById('popupExportBtn');
+  if (popupExport) popupExport.addEventListener('click', exportFullDataset);
+  const popupFullPage = document.getElementById('popupFullPageBtn');
+  if (popupFullPage) popupFullPage.addEventListener('click', async () => {
+    const currentTab = await getInspectionTargetTab();
+    await openFullPageDashboard(true, currentTab?.id || 0, activeView);
+  });
+  const popupOpenDash = document.getElementById('popupOpenDashBtn');
+  if (popupOpenDash) popupOpenDash.addEventListener('click', async () => {
+    const currentTab = await getInspectionTargetTab();
+    await openFullPageDashboard(true, currentTab?.id || 0, activeView);
+  });
+  const popupTheme = document.getElementById('popupThemeBtn');
+  if (popupTheme) popupTheme.addEventListener('click', toggleThemeMode);
+  const popupCapture = document.getElementById('popupCaptureGoogleBtn');
+  if (popupCapture) popupCapture.addEventListener('click', async () => {
+    const query = lastChatgptData?.latestUserPrompt || lastChatgptData?.queries?.[0]?.q;
+    await openGoogleForQuery(query);
+  });
+  // Popup section collapse (design-system pop-section pattern).
+  document.querySelectorAll('.pop-section[data-pop-collapse] .pop-section-head').forEach((head) => {
+    head.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      head.parentElement.classList.toggle('collapsed');
+    });
+  });
   if (els.clearChatgptArchiveBtn) {
     els.clearChatgptArchiveBtn.addEventListener('click', handleClearChatgptArchive);
   }
@@ -2717,6 +2887,7 @@ async function init() {
   renderGoogle(lastGoogleData);
   renderCombined();
   renderHistory();
+  populatePopup();
   switchTab(activeView);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
@@ -2743,6 +2914,7 @@ async function init() {
       renderGoogle(lastGoogleData);
       renderCombined();
       renderHistory();
+      populatePopup();
       switchTab(activeView);
     }
   });
