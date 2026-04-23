@@ -23,7 +23,7 @@
     </header>
 
     <section id="statusCard" class="card status-card">
-      <div id="statusText">Open a ChatGPT conversation or search results page. The inspector auto-captures on open.</div>
+      <div id="statusText">Open a ChatGPT conversation (auto-captured) or a Google/Bing/DuckDuckGo results page, then click Refresh to capture it locally.</div>
     </section>
 
     <nav class="tabbar" aria-label="Views">
@@ -320,8 +320,8 @@
         <h2>Privacy & safety</h2>
       </div>
       <ul class="note-list">
-        <li>Reads only the currently open ChatGPT or search results tab on this device. It can also auto-refresh local captures for supported tabs so the full-page inspector stays up to date without manual refresh.</li>
-        <li>Stores the last captured ChatGPT and Google datasets locally on this device for comparison.</li>
+        <li>Auto-captures only ChatGPT conversations you open (requires ChatGPT access in the manifest). Search pages are captured only when you click the extension icon while the page is the active tab.</li>
+        <li>Stores the last captured ChatGPT conversation (including prompts and cited URLs) and the last search result set locally on this device for comparison.</li>
         <li>Sends nothing off-device. No analytics. No cloud sync.</li>
       </ul>
     </section>

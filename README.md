@@ -13,10 +13,10 @@ A local-only browser extension for:
 - Local-only storage for the last captured ChatGPT and Google datasets
 
 ## Privacy
-- Reads only the active ChatGPT or Google tab when you click Refresh
-- Stores the last captured datasets locally on-device for comparison
-- Sends nothing off-device
-- No analytics or cloud sync
+- Auto-captures ChatGPT conversations (the extension has declared host access to chatgpt.com and chat.openai.com; on every conversation load it fetches the conversation JSON from ChatGPT's own backend using your existing session — nothing is sent off-device).
+- Search pages (Google / Bing / DuckDuckGo) are captured only when you open the extension popup while that tab is active. The extension has no host permission for search sites; it relies on `activeTab`, which is granted per-click.
+- Stores the last captured ChatGPT conversation (including prompts, responses, and cited URLs) and the last SERP result set locally on this device for comparison.
+- Sends nothing off-device. No analytics. No cloud sync.
 
 ## Notes
 - ChatGPT parsing depends on internal payload structure and may need updates if the site changes

@@ -268,18 +268,7 @@ function parseChatgptPayload(raw, conversationId, pageUrl) {
     capturedAt: new Date().toISOString()
   };
 }
-function parseSearchPayload(raw, pageUrl) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const clean = (value, maxLen = 500) => sanitizeString(value, maxLen);
-  const results = Array.isArray(raw.results) ? raw.results : [];
-  const cleanedResults = results.map((item)=>({ rank:Number(item.rank)||0, title:clean(item.title,300), url:clean(item.url,1000), domain:normalizeDomain(item.domain||''), snippet:clean(item.snippet,500) })).filter((item)=>item.rank>0 && item.title && item.url && item.domain).slice(0,20);
-  const uniqueDomains = [...new Set(cleanedResults.map((item)=>item.domain))];
-  const engine = clean(raw.engine || '', 80).toLowerCase() || 'google';
-  const map = { google:'Google', bing:'Bing', duckduckgo:'DuckDuckGo' };
-  return { engine, engineLabel: map[engine] || 'Unknown', query: clean(raw.query || '', 300), captureMode: `Local ${(map[engine]||'Search')} page`, resultCount: cleanedResults.length, uniqueDomains, serpFeatures: Array.isArray(raw.serpFeatures) ? [...new Set(raw.serpFeatures.map((v)=>clean(v,120)).filter(Boolean))] : [], results: cleanedResults, pageUrl, browser: 'Background capture', capturedAt: new Date().toISOString() };
-}
 function isChatgptUrl(url='') { return /^https:\/\/(chatgpt\.com|chat\.openai\.com)\//.test(url); }
-function isSearchUrl(url='') { return /^https:\/\/((([a-z0-9-]+\.)*google\.)|(([a-z0-9-]+\.)*bing\.com)|duckduckgo\.com)/i.test(url); }
 async function maybeCaptureTab(tabId, url) {
   try {
     if (isChatgptUrl(url)) {
@@ -307,34 +296,12 @@ async function maybeCaptureTab(tabId, url) {
         const parsed = parseChatgptPayload(result.payload, result.conversationId, result.pageUrl || url);
         if (parsed) await chrome.storage.local.set({ chatgptInspectorData: parsed });
       }
-    } else if (isSearchUrl(url)) {
-      const res = await chrome.scripting.executeScript({ target:{tabId}, world:'MAIN', func: function fetchSearchResultsInPage(){
-        return (()=>{
-          try {
-            const clean = (value, maxLen = 500) => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, maxLen) : '';
-            const norm = (value) => clean(value, 255).toLowerCase().replace(/^www\./, '');
-            const url = new URL(window.location.href); const host = url.hostname.toLowerCase(); const candidates = []; const seen = new Set(); const featureSet = new Set(); const bodyText = clean(document.body?.innerText || '', 5000).toLowerCase(); let engine='google'; let query='';
-            const pushCandidate=(title,href,domain,snippet)=>{ const safeHref=clean(href,1000); const safeDomain=norm(domain); const safeTitle=clean(title,300); if(!safeHref||!safeTitle||!safeDomain) return; const key=`${safeDomain}::${safeHref}`; if(seen.has(key)) return; seen.add(key); candidates.push({title:safeTitle,url:safeHref,domain:safeDomain,snippet:clean(snippet,420)}); };
-            if (/(^|\.)google\./i.test(host)) { engine='google'; query=clean(document.querySelector('textarea[name="q"], input[name="q"]')?.value || url.searchParams.get('q') || '',300); document.querySelectorAll('a[href^="http"]').forEach((anchor)=>{ const href=anchor.href||''; const h3=anchor.querySelector('h3'); if(!h3 || !href.startsWith('http')) return; let parsed; try{ parsed=new URL(href);}catch{return;} const domain=norm(parsed.hostname); if(!domain||/google\./i.test(domain)) return; const container=anchor.closest('div[data-snc], .MjjYud, .g, .tF2Cxc') || anchor.parentElement || anchor; const snippet=clean(container?.innerText || '',420).replace(clean(h3.textContent||'',300),''); pushCandidate(h3.textContent||'', href, domain, snippet); }); if (/ai overview|overview from ai/.test(bodyText) || document.querySelector('[data-attrid="title"]')) featureSet.add('AI Overview'); if (/featured snippet/.test(bodyText) || document.querySelector('.hgKElc, .xpdopen .DKV0Md')) featureSet.add('Featured Snippet'); if (/top stories/.test(bodyText)) featureSet.add('Top Stories'); if (/shopping/.test(bodyText)) featureSet.add('Shopping'); if (/videos/.test(bodyText) || document.querySelector('a[href*="youtube.com"]')) featureSet.add('Videos'); }
-            else if (/(^|\.)bing\.com$/i.test(host)) { engine='bing'; query=clean(document.querySelector('textarea[name="q"], input[name="q"], #sb_form_q')?.value || url.searchParams.get('q') || '',300); document.querySelectorAll('li.b_algo h2 a').forEach((anchor)=>{ const href=anchor.href||''; if(!href.startsWith('http')) return; let parsed; try{ parsed=new URL(href);}catch{return;} const domain=norm(parsed.hostname); if(!domain||/bing\.com/i.test(domain)) return; const container=anchor.closest('li.b_algo') || anchor.parentElement || anchor; const snippet=clean(container?.querySelector('.b_caption p')?.innerText || container?.innerText || '',420).replace(clean(anchor.textContent||'',300),''); pushCandidate(anchor.textContent||'', href, domain, snippet); }); if (/ai answer|copilot answer/.test(bodyText)) featureSet.add('AI Answer'); if (/top stories/.test(bodyText)) featureSet.add('Top Stories'); if (/shopping/.test(bodyText)) featureSet.add('Shopping'); if (/videos/.test(bodyText)) featureSet.add('Videos'); if (/featured snippet|answers/.test(bodyText)) featureSet.add('Featured Snippet'); }
-            else if (host==='duckduckgo.com' && (url.pathname.startsWith('/') || url.pathname.startsWith('/html'))) { engine='duckduckgo'; query=clean(document.querySelector('input[name="q"], textarea[name="q"]')?.value || url.searchParams.get('q') || '',300); document.querySelectorAll('[data-testid="result"] h2 a, .result__title a').forEach((anchor)=>{ const href=anchor.href||''; if(!href.startsWith('http')) return; let parsed; try{ parsed=new URL(href);}catch{return;} const domain=norm(parsed.hostname); if(!domain||/duckduckgo\.com/i.test(domain)) return; const container=anchor.closest('[data-testid="result"]') || anchor.closest('.result') || anchor.parentElement || anchor; const snippet=clean(container?.querySelector('[data-result="snippet"], .result__snippet')?.innerText || container?.innerText || '',420).replace(clean(anchor.textContent||'',300),''); pushCandidate(anchor.textContent||'', href, domain, snippet); }); if (/news/.test(bodyText)) featureSet.add('News Module'); if (/videos/.test(bodyText)) featureSet.add('Videos'); if (/shopping/.test(bodyText)) featureSet.add('Shopping'); }
-            else return { error:'This page is not a supported Google, Bing, or DuckDuckGo results page.' };
-            const results=candidates.slice(0,10).map((item,index)=>({ rank:index+1, ...item }));
-            return { engine, query, serpFeatures:[...featureSet], results, pageUrl:window.location.href };
-          } catch(error) { return { error:`Search page read failed: ${error?.message || 'Unknown error'}` }; }
-        })();
-      }});
-      const result = res?.[0]?.result;
-      if (result && !result.error) {
-        const parsed = parseSearchPayload(result, result.pageUrl || url);
-        if (parsed) await chrome.storage.local.set({ googleInspectorData: parsed });
-      }
     }
   } catch {}
 }
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete' || !tab?.url) return;
-  if (!isChatgptUrl(tab.url) && !isSearchUrl(tab.url)) return;
+  if (!isChatgptUrl(tab.url)) return;
   maybeCaptureTab(tabId, tab.url);
 });
 chrome.runtime.onInstalled.addListener(() => {});
