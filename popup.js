@@ -39,6 +39,8 @@ const {
   sortConversationPath,
   aggregateSourceItems,
   buildConversationTurns,
+  parseGooglePayload,
+  fetchSearchResultsInPage,
 } = self.AIQIShared;
 
 // ============================================================================
@@ -371,11 +373,6 @@ function slugify(value, fallback = 'export') {
   return clean || fallback;
 }
 
-function titleCaseEngine(engine) {
-  const map = { google: 'Google', bing: 'Bing', duckduckgo: 'DuckDuckGo' };
-  return map[engine] || 'Unknown';
-}
-
 function getBrowserLabel() {
   const ua = navigator.userAgent || '';
   if (/Edg\//.test(ua)) return 'Edge';
@@ -385,10 +382,8 @@ function getBrowserLabel() {
   return 'Browser';
 }
 
-function normalizeFeatureList(features) {
-  if (!Array.isArray(features)) return [];
-  return [...new Set(features.map((v) => sanitizeString(v, 120)).filter(Boolean))].slice(0, 20);
-}
+// titleCaseEngine and normalizeFeatureList now live in shared.js, used
+// internally by parseGooglePayload — no longer referenced directly in popup.js.
 
 function csvEscape(value) {
   const str = String(value ?? '');
@@ -952,53 +947,6 @@ function renderSources(data) {
     row.appendChild(url);
     els.sourcesWrap.appendChild(row);
   });
-}
-
-function parseGooglePayload(raw, fallbackQuery = '') {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Search payload is invalid.');
-  const results = Array.isArray(raw.results) ? raw.results : [];
-  const cleanedResults = results.map((item) => ({
-    rank: Number(item.rank) || 0,
-    title: sanitizeString(item.title, 300),
-    url: sanitizeString(item.url, 1000),
-    domain: normalizeDomain(item.domain || ''),
-    snippet: sanitizeString(item.snippet, 500)
-  })).filter((item) => item.rank > 0 && item.title && item.url && item.domain).slice(0, 20);
-
-  const uniqueDomains = [...new Set(cleanedResults.map((item) => item.domain))];
-  const engine = sanitizeString(raw.engine || '', 80).toLowerCase() || 'google';
-  const serpFeatures = normalizeFeatureList(raw.serpFeatures || []);
-
-  // Stage 3.4: AI Overview citation sources extracted in the page
-  // context. Dedupe by domain+title so repeat links (an AIO often
-  // references the same source from multiple paragraphs) collapse.
-  const rawAio = Array.isArray(raw.aioSources) ? raw.aioSources : [];
-  const aioSeen = new Set();
-  const aioSources = [];
-  for (const item of rawAio) {
-    const domain = normalizeDomain(item?.domain || '');
-    const title = sanitizeString(item?.title || '', 300);
-    const url = sanitizeString(item?.url || '', 1500);
-    if (!domain || !url) continue;
-    const key = `${domain}||${title}`;
-    if (aioSeen.has(key)) continue;
-    aioSeen.add(key);
-    aioSources.push({ domain, title, url });
-    if (aioSources.length >= 20) break;
-  }
-
-  return {
-    engine,
-    engineLabel: titleCaseEngine(engine),
-    query: sanitizeString(raw.query || fallbackQuery || '', 300),
-    captureMode: `Local ${titleCaseEngine(engine)} page`,
-    resultCount: cleanedResults.length,
-    uniqueDomains,
-    serpFeatures,
-    results: cleanedResults,
-    aioSources,
-    capturedAt: new Date().toISOString()
-  };
 }
 
 function renderGoogle(data) {
@@ -1850,221 +1798,6 @@ async function fetchConversationPayloadInPage() {
   }
 }
 
-async function fetchSearchResultsInPage() {
-  const clean = (value, maxLen = 500) => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, maxLen) : '';
-  const norm = (host) => clean(host || '', 255).toLowerCase().replace(/^www\./, '');
-  try {
-    const url = new URL(window.location.href);
-    const host = norm(url.hostname);
-    const featureSet = new Set();
-    // Stage 3.4: accumulate Google AI Overview citation sources here so
-    // they can be cross-referenced against ChatGPT's citations in the
-    // Combined tab. Populated only when the AI Overview feature is
-    // detected; otherwise remains an empty array.
-    const aioSources = [];
-    // Helper: detect a SERP feature by trying each selector in `selectors`.
-    // DOM-based detection replaces the old bodyText regex approach, which
-    // produced false positives whenever a user's query contained phrases
-    // like "top stories" or "featured snippet". Selectors are lenient
-    // against Google markup drift — we list a few alternative hooks per
-    // feature and any match wins.
-    const hasAny = (selectors) => selectors.some((sel) => {
-      try { return !!document.querySelector(sel); } catch { return false; }
-    });
-    const seen = new Set();
-    let engine = '';
-    let query = '';
-    const candidates = [];
-
-    const pushCandidate = (title, href, domain, snippet) => {
-      const safeTitle = clean(title, 300);
-      const safeHref = clean(href, 1200);
-      const safeDomain = norm(domain);
-      const safeSnippet = clean(snippet, 420);
-      if (!safeTitle || !safeHref || !safeDomain) return;
-      const key = `${safeDomain}||${safeTitle}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      candidates.push({ title: safeTitle, url: safeHref, domain: safeDomain, snippet: safeSnippet });
-    };
-
-    // Helper: pick the first organic-looking anchor (href starts with http,
-    // excludes the engine's own domain, and isn't a webcache/translate/image
-    // proxy) from within a container. Returns { anchor, h3 } or null.
-    const pickOrganicAnchor = (container, ownDomainPattern) => {
-      const h3 = container.querySelector('a h3');
-      if (!h3) return null;
-      const anchor = h3.closest('a');
-      if (!anchor) return null;
-      const href = anchor.href || '';
-      if (!href.startsWith('http')) return null;
-      let parsed;
-      try { parsed = new URL(href); } catch { return null; }
-      const domain = norm(parsed.hostname);
-      if (!domain || ownDomainPattern.test(domain)) return null;
-      // Skip Google's URL wrappers (already handled by href resolution) and
-      // non-result paths (maps, images, shopping product pages, etc.).
-      if (/^(webcache|translate|images|maps|shopping)\./i.test(domain)) return null;
-      return { anchor, h3, href, domain, parsed };
-    };
-
-    // Container-class tokens that indicate a SERP feature rather than an
-    // organic result. We match against a lowercased className string.
-    const nonOrganicClassTokens = [
-      'related-question-pair', 'ulsxyf', 'kno-kp', 'g-blk', 'knowledge-panel',
-      'kp-blk', 'knavi', 'carousel', 'mnr-c', 'commercial-unit', 'obcontainer'
-    ];
-    const hasNonOrganicClass = (el) => {
-      const cls = typeof el?.className === 'string' ? el.className.toLowerCase() : '';
-      if (!cls) return false;
-      return nonOrganicClassTokens.some((t) => cls.includes(t));
-    };
-
-    if (/(^|\.)google\./i.test(host) && url.pathname.startsWith('/search')) {
-      engine = 'google';
-      query = clean(document.querySelector('textarea[name="q"], input[name="q"]')?.value || url.searchParams.get('q') || '', 300);
-      // Organic results live under #rso as direct-child containers. Iterating
-      // containers (rather than every `a h3` on the page) gives true organic
-      // rank and skips sitelinks, People-Also-Ask, knowledge panels, etc.
-      const rso = document.querySelector('#rso') || document.querySelector('#search');
-      if (rso) {
-        const containers = Array.from(rso.querySelectorAll(':scope > div'));
-        for (const container of containers) {
-          if (hasNonOrganicClass(container)) continue;
-          // Also skip if the container itself is or wraps a People-Also-Ask module.
-          if (container.querySelector('[jsname="Cpkphb"], [data-initq], .related-question-pair')) continue;
-          const picked = pickOrganicAnchor(container, /(^|\.)google\./i);
-          if (!picked) continue;
-          const snippet = clean((container.innerText || '').replace(picked.h3.textContent || '', ''), 420);
-          pushCandidate(picked.h3.textContent || '', picked.href, picked.domain, snippet);
-        }
-      }
-      // Google SERP-feature detection via DOM hooks. We prefer structural
-      // selectors over text scanning so a user's own query can't trigger
-      // false positives.
-      const aioSelectors = [
-        '#ai-overview', '#AI-Overview', '[data-attrid="AIOverviewTitle"]',
-        '[aria-label*="AI Overview" i]', 'div[data-attrid*="overview" i]',
-        'div[jscontroller][data-q]'
-      ];
-      if (hasAny(aioSelectors)) featureSet.add('AI Overview');
-
-      // Stage 3.4: extract the citation sources Google's AI Overview
-      // surfaces so we can later cross-reference them with ChatGPT's
-      // citations. AIO links typically live inside the overview
-      // container as anchors with href starting with http(s). We limit
-      // to the first 20 to keep the payload bounded.
-      const aioContainer = aioSelectors.map((s) => {
-        try { return document.querySelector(s); } catch { return null; }
-      }).find(Boolean);
-      if (aioContainer) {
-        const anchors = aioContainer.querySelectorAll('a[href^="http"]');
-        let added = 0;
-        for (const a of anchors) {
-          if (added >= 20) break;
-          const href = a.href || '';
-          if (!href) continue;
-          let parsed;
-          try { parsed = new URL(href); } catch { continue; }
-          const domain = norm(parsed.hostname);
-          if (!domain || /(^|\.)google\./i.test(domain)) continue;
-          const title = clean(a.textContent || a.getAttribute('aria-label') || '', 300);
-          if (!title) continue;
-          // Store under a separate key so it rides alongside organic
-          // results without being counted as one of them.
-          aioSources.push({ title, url: href, domain });
-          added += 1;
-        }
-      }
-      if (hasAny([
-        '.hgKElc', '.xpdopen .DKV0Md', '[data-attrid="wa:/description"]',
-        '.ifM9O', '.kp-blk > div:first-child'
-      ])) featureSet.add('Featured Snippet');
-      if (hasAny([
-        'g-section-with-header[data-hveid]', 'g-news-card',
-        'div[data-attrid*="news" i]', '.WlydOe'
-      ])) featureSet.add('Top Stories');
-      if (hasAny([
-        '.commercial-unit-desktop-top', '.sh-dgr__content',
-        'g-scrolling-carousel[data-attrid*="shopping" i]', '.pla-unit'
-      ])) featureSet.add('Shopping');
-      if (hasAny([
-        'video-voyager', 'a[href*="youtube.com/watch"]',
-        'g-scrolling-carousel[data-attrid*="video" i]', '#videobox'
-      ])) featureSet.add('Videos');
-      if (hasAny(['.related-question-pair', '[jsname="Cpkphb"]']))
-        featureSet.add('People Also Ask');
-      if (hasAny([
-        '.knowledge-panel', '.kno-kp', '.kp-blk',
-        '[data-attrid*="kc:/common/topic"]'
-      ])) featureSet.add('Knowledge Panel');
-      if (hasAny(['#imagebox_bigimages', 'g-section-with-header g-img', '.isv-r']))
-        featureSet.add('Images Pack');
-      if (hasAny(['.rllt__details', '[data-attrid*="kc:/location"]']))
-        featureSet.add('Local Pack');
-    } else if (/(^|\.)bing\.com$/i.test(host)) {
-      engine = 'bing';
-      query = clean(document.querySelector('textarea[name="q"], input[name="q"], #sb_form_q')?.value || url.searchParams.get('q') || '', 300);
-      // Bing organic results are in li.b_algo within #b_results. Iterate
-      // containers so rank is the organic list position, and take the first
-      // h2 > a per container (deep links live in .b_deep and are ignored).
-      document.querySelectorAll('#b_results > li.b_algo').forEach((container) => {
-        const anchor = container.querySelector('h2 a');
-        if (!anchor) return;
-        const href = anchor.href || '';
-        if (!href.startsWith('http')) return;
-        let parsed;
-        try { parsed = new URL(href); } catch { return; }
-        const domain = norm(parsed.hostname);
-        if (!domain || /bing\.com/i.test(domain)) return;
-        const snippet = clean(container.querySelector('.b_caption p')?.innerText || container.innerText || '', 420).replace(clean(anchor.textContent || '', 300), '');
-        pushCandidate(anchor.textContent || '', href, domain, snippet);
-      });
-      // Bing SERP-feature detection.
-      if (hasAny([
-        'cib-serp-main', 'div.codex-sky-answer',
-        '[class*="copilot" i]', '[class*="cib" i]'
-      ])) featureSet.add('AI Answer');
-      if (hasAny(['div[data-feedbk-ids*="News"]', '.news-card', 'li.b_ans .b_algoheader'])) featureSet.add('Top Stories');
-      if (hasAny(['.slide[data-ptype="Shopping"]', '.pa_content.shop', '[data-partnertag="shopping"]'])) featureSet.add('Shopping');
-      if (hasAny(['.vrhdata', '.mc_vtvc', '.video_card'])) featureSet.add('Videos');
-      if (hasAny(['.b_ans', '.b_answer', '.b_expPag', '.tbcont'])) featureSet.add('Featured Snippet');
-    } else if (host === 'duckduckgo.com' && (url.pathname.startsWith('/') || url.pathname.startsWith('/html'))) {
-      engine = 'duckduckgo';
-      query = clean(document.querySelector('input[name="q"], textarea[name="q"]')?.value || url.searchParams.get('q') || '', 300);
-      // DDG organic results: [data-testid="result"] (modern) or .result:not(.result--ad) (lite).
-      const ddgContainers = document.querySelectorAll('[data-testid="result"], .result:not(.result--ad):not(.result--sidebar)');
-      ddgContainers.forEach((container) => {
-        // Skip containers that are clearly ads (belt-and-suspenders).
-        const cls = typeof container.className === 'string' ? container.className.toLowerCase() : '';
-        if (cls.includes('result--ad')) return;
-        const anchor = container.querySelector('h2 a, .result__title a');
-        if (!anchor) return;
-        const href = anchor.href || '';
-        if (!href.startsWith('http')) return;
-        let parsed;
-        try { parsed = new URL(href); } catch { return; }
-        const domain = norm(parsed.hostname);
-        if (!domain || /duckduckgo\.com/i.test(domain)) return;
-        const snippet = clean(container.querySelector('[data-result="snippet"], .result__snippet')?.innerText || container.innerText || '', 420).replace(clean(anchor.textContent || '', 300), '');
-        pushCandidate(anchor.textContent || '', href, domain, snippet);
-      });
-      // DuckDuckGo SERP-feature detection.
-      if (hasAny(['article[data-testid="news-results"]', '.news-card', '.module--news'])) featureSet.add('News Module');
-      if (hasAny(['.module--videos', '.tile--vid', 'article[data-testid="videos-results"]'])) featureSet.add('Videos');
-      if (hasAny(['.module--shopping', 'article[data-testid="shopping-results"]'])) featureSet.add('Shopping');
-      if (hasAny(['.ai-assist', '[data-testid="ai-assist"]'])) featureSet.add('AI Answer');
-    } else {
-      return { error: 'This page is not a supported Google, Bing, or DuckDuckGo results page.' };
-    }
-
-    const results = candidates.slice(0, 10).map((item, index) => ({ rank: index + 1, ...item }));
-    return { engine, query, serpFeatures: [...featureSet], results, aioSources, pageUrl: window.location.href };
-  } catch (error) {
-    return { error: `Search page read failed: ${error?.message || 'Unknown error'}` };
-  }
-}
-
 // ============================================================================
 // 9. INSPECTION — glue code: identify the active tab, inject the
 //    page-context function, parse the result, persist to storage, and
@@ -2153,8 +1886,19 @@ async function openGoogleForQuery(query) {
     url: `https://www.google.com/search?q=${encodeURIComponent(cleanQuery)}`,
     active: false
   });
+  // Orchestration marker: tells the service worker to auto-capture
+  // this specific tab when it finishes loading, so the dashboard
+  // populates without a second user action. Stored alongside the
+  // existing PENDING_GOOGLE_QUERY, which stays as-is for back-compat.
+  if (googleTab?.id) {
+    await self.AIQIShared.storage.savePendingGoogleOrchestration({
+      tabId: googleTab.id,
+      query: cleanQuery,
+      createdAt: Date.now(),
+    });
+  }
   await openFullPageDashboard(true, googleTab?.id || currentTab?.id || 0, 'google');
-  setStatus('Opened Google and dashboard.', 'ok');
+  setStatus('Opened Google and dashboard. Capturing once the page finishes loading…', 'ok');
   showToast('Opened Google and dashboard');
 }
 

@@ -7,7 +7,15 @@
  */
 importScripts('shared.js');
 
-const { parseChatgptPayload, getSettings, storage } = self.AIQIShared;
+const {
+  parseChatgptPayload,
+  parseGooglePayload,
+  fetchSearchResultsInPage,
+  isSearchEngineUrl,
+  getSettings,
+  storage,
+  ORCHESTRATION_TTL_MS,
+} = self.AIQIShared;
 
 function isChatgptUrl(url = '') {
   return /^https:\/\/(chatgpt\.com|chat\.openai\.com)\//.test(url);
@@ -69,10 +77,75 @@ async function maybeCaptureTab(tabId, url) {
   }
 }
 
+/**
+ * Orchestrated Google SERP capture.
+ *
+ * The popup's "Open Google for prompt" handoff opens a new Google tab
+ * and writes a PENDING_GOOGLE_ORCHESTRATION marker containing the
+ * target tabId + query. When that specific tab finishes loading, we
+ * inject the SERP scraper, parse the result, and save to GOOGLE_DATA
+ * + the Google archive. The dashboard listens on chrome.storage
+ * changes and re-renders automatically — no second user click.
+ */
+async function maybeOrchestrateGoogleCapture(tabId, url) {
+  try {
+    if (!isSearchEngineUrl(url)) return;
+    const orch = await storage.loadPendingGoogleOrchestration();
+    if (!orch) return;
+    // TTL guard — clear stale markers so a tab the user closed or a
+    // crashed listener doesn't leave a permanent trigger behind.
+    if (!orch.createdAt || (Date.now() - Number(orch.createdAt)) > ORCHESTRATION_TTL_MS) {
+      await storage.clearPendingGoogleOrchestration();
+      return;
+    }
+    if (orch.tabId !== tabId) return;
+    const res = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: fetchSearchResultsInPage,
+    });
+    const result = res?.[0]?.result;
+    if (!result || result.error) {
+      // Clear so we don't keep retrying on the same failed page. The
+      // user can still click Refresh manually if they want to retry.
+      await storage.clearPendingGoogleOrchestration();
+      return;
+    }
+    const parsed = parseGooglePayload(result, orch.query || '');
+    const record = {
+      ...parsed,
+      pageUrl: result.pageUrl || url || '',
+      browser: 'Background capture',
+    };
+    await storage.saveGoogleData(record);
+    await storage.appendGoogleCapture(record);
+    await storage.clearPendingGoogleOrchestration();
+  } catch {
+    // Best-effort: swallow so a single failure can't break the worker.
+    try { await storage.clearPendingGoogleOrchestration(); } catch {}
+  }
+}
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete' || !tab?.url) return;
-  if (!isChatgptUrl(tab.url)) return;
-  maybeCaptureTab(tabId, tab.url);
+  if (isChatgptUrl(tab.url)) {
+    maybeCaptureTab(tabId, tab.url);
+    return;
+  }
+  if (isSearchEngineUrl(tab.url)) {
+    maybeOrchestrateGoogleCapture(tabId, tab.url);
+  }
+});
+
+// If the user closes the orchestrated Google tab before it loaded,
+// drop the stale marker so a future handoff starts clean.
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  try {
+    const orch = await storage.loadPendingGoogleOrchestration();
+    if (orch && orch.tabId === tabId) {
+      await storage.clearPendingGoogleOrchestration();
+    }
+  } catch {}
 });
 
 chrome.runtime.onInstalled.addListener(() => {});

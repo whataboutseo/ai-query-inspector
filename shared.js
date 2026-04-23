@@ -653,6 +653,252 @@
   }
 
   /**
+   * SERP helpers — shared between popup.js (direct capture from the
+   * active tab) and background.js (orchestrated auto-capture triggered
+   * by the "Open Google for prompt" handoff).
+   */
+  function titleCaseEngine(engine) {
+    const map = { google: 'Google', bing: 'Bing', duckduckgo: 'DuckDuckGo' };
+    return map[engine] || 'Unknown';
+  }
+
+  function normalizeFeatureList(features) {
+    if (!Array.isArray(features)) return [];
+    return [...new Set(features.map((v) => sanitizeString(v, 120)).filter(Boolean))].slice(0, 20);
+  }
+
+  function parseGooglePayload(raw, fallbackQuery = '') {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Search payload is invalid.');
+    const results = Array.isArray(raw.results) ? raw.results : [];
+    const cleanedResults = results.map((item) => ({
+      rank: Number(item.rank) || 0,
+      title: sanitizeString(item.title, 300),
+      url: sanitizeString(item.url, 1000),
+      domain: normalizeDomain(item.domain || ''),
+      snippet: sanitizeString(item.snippet, 500),
+    })).filter((item) => item.rank > 0 && item.title && item.url && item.domain).slice(0, 20);
+
+    const uniqueDomains = [...new Set(cleanedResults.map((item) => item.domain))];
+    const engine = sanitizeString(raw.engine || '', 80).toLowerCase() || 'google';
+    const serpFeatures = normalizeFeatureList(raw.serpFeatures || []);
+
+    const rawAio = Array.isArray(raw.aioSources) ? raw.aioSources : [];
+    const aioSeen = new Set();
+    const aioSources = [];
+    for (const item of rawAio) {
+      const domain = normalizeDomain(item?.domain || '');
+      const title = sanitizeString(item?.title || '', 300);
+      const url = sanitizeString(item?.url || '', 1500);
+      if (!domain || !url) continue;
+      const key = `${domain}||${title}`;
+      if (aioSeen.has(key)) continue;
+      aioSeen.add(key);
+      aioSources.push({ domain, title, url });
+      if (aioSources.length >= 20) break;
+    }
+
+    return {
+      engine,
+      engineLabel: titleCaseEngine(engine),
+      query: sanitizeString(raw.query || fallbackQuery || '', 300),
+      captureMode: `Local ${titleCaseEngine(engine)} page`,
+      resultCount: cleanedResults.length,
+      uniqueDomains,
+      serpFeatures,
+      results: cleanedResults,
+      aioSources,
+      capturedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * MAIN-world SERP scraper. Chrome serialises this function to a
+   * string and injects it into the target tab — it therefore cannot
+   * reference any outer scope (sanitizeString, normalizeDomain, etc.).
+   * All helpers are inlined on purpose.
+   */
+  function fetchSearchResultsInPage() {
+    const clean = (value, maxLen = 500) => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, maxLen) : '';
+    const norm = (host) => clean(host || '', 255).toLowerCase().replace(/^www\./, '');
+    try {
+      const url = new URL(window.location.href);
+      const host = norm(url.hostname);
+      const featureSet = new Set();
+      const aioSources = [];
+      const hasAny = (selectors) => selectors.some((sel) => {
+        try { return !!document.querySelector(sel); } catch { return false; }
+      });
+      const seen = new Set();
+      let engine = '';
+      let query = '';
+      const candidates = [];
+
+      const pushCandidate = (title, href, domain, snippet) => {
+        const safeTitle = clean(title, 300);
+        const safeHref = clean(href, 1200);
+        const safeDomain = norm(domain);
+        const safeSnippet = clean(snippet, 420);
+        if (!safeTitle || !safeHref || !safeDomain) return;
+        const key = `${safeDomain}||${safeTitle}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        candidates.push({ title: safeTitle, url: safeHref, domain: safeDomain, snippet: safeSnippet });
+      };
+
+      const pickOrganicAnchor = (container, ownDomainPattern) => {
+        const h3 = container.querySelector('a h3');
+        if (!h3) return null;
+        const anchor = h3.closest('a');
+        if (!anchor) return null;
+        const href = anchor.href || '';
+        if (!href.startsWith('http')) return null;
+        let parsed;
+        try { parsed = new URL(href); } catch { return null; }
+        const domain = norm(parsed.hostname);
+        if (!domain || ownDomainPattern.test(domain)) return null;
+        if (/^(webcache|translate|images|maps|shopping)\./i.test(domain)) return null;
+        return { anchor, h3, href, domain, parsed };
+      };
+
+      const nonOrganicClassTokens = [
+        'related-question-pair', 'ulsxyf', 'kno-kp', 'g-blk', 'knowledge-panel',
+        'kp-blk', 'knavi', 'carousel', 'mnr-c', 'commercial-unit', 'obcontainer',
+      ];
+      const hasNonOrganicClass = (el) => {
+        const cls = typeof el?.className === 'string' ? el.className.toLowerCase() : '';
+        if (!cls) return false;
+        return nonOrganicClassTokens.some((t) => cls.includes(t));
+      };
+
+      if (/(^|\.)google\./i.test(host) && url.pathname.startsWith('/search')) {
+        engine = 'google';
+        query = clean(document.querySelector('textarea[name="q"], input[name="q"]')?.value || url.searchParams.get('q') || '', 300);
+        const rso = document.querySelector('#rso') || document.querySelector('#search');
+        if (rso) {
+          const containers = Array.from(rso.querySelectorAll(':scope > div'));
+          for (const container of containers) {
+            if (hasNonOrganicClass(container)) continue;
+            if (container.querySelector('[jsname="Cpkphb"], [data-initq], .related-question-pair')) continue;
+            const picked = pickOrganicAnchor(container, /(^|\.)google\./i);
+            if (!picked) continue;
+            const snippet = clean((container.innerText || '').replace(picked.h3.textContent || '', ''), 420);
+            pushCandidate(picked.h3.textContent || '', picked.href, picked.domain, snippet);
+          }
+        }
+        const aioSelectors = [
+          '#ai-overview', '#AI-Overview', '[data-attrid="AIOverviewTitle"]',
+          '[aria-label*="AI Overview" i]', 'div[data-attrid*="overview" i]',
+          'div[jscontroller][data-q]',
+        ];
+        if (hasAny(aioSelectors)) featureSet.add('AI Overview');
+
+        const aioContainer = aioSelectors.map((s) => {
+          try { return document.querySelector(s); } catch { return null; }
+        }).find(Boolean);
+        if (aioContainer) {
+          const anchors = aioContainer.querySelectorAll('a[href^="http"]');
+          let added = 0;
+          for (const a of anchors) {
+            if (added >= 20) break;
+            const href = a.href || '';
+            if (!href) continue;
+            let parsed;
+            try { parsed = new URL(href); } catch { continue; }
+            const domain = norm(parsed.hostname);
+            if (!domain || /(^|\.)google\./i.test(domain)) continue;
+            const title = clean(a.textContent || a.getAttribute('aria-label') || '', 300);
+            if (!title) continue;
+            aioSources.push({ title, url: href, domain });
+            added += 1;
+          }
+        }
+        if (hasAny([
+          '.hgKElc', '.xpdopen .DKV0Md', '[data-attrid="wa:/description"]',
+          '.ifM9O', '.kp-blk > div:first-child',
+        ])) featureSet.add('Featured Snippet');
+        if (hasAny([
+          'g-section-with-header[data-hveid]', 'g-news-card',
+          'div[data-attrid*="news" i]', '.WlydOe',
+        ])) featureSet.add('Top Stories');
+        if (hasAny([
+          '.commercial-unit-desktop-top', '.sh-dgr__content',
+          'g-scrolling-carousel[data-attrid*="shopping" i]', '.pla-unit',
+        ])) featureSet.add('Shopping');
+        if (hasAny([
+          'video-voyager', 'a[href*="youtube.com/watch"]',
+          'g-scrolling-carousel[data-attrid*="video" i]', '#videobox',
+        ])) featureSet.add('Videos');
+        if (hasAny(['.related-question-pair', '[jsname="Cpkphb"]']))
+          featureSet.add('People Also Ask');
+        if (hasAny([
+          '.knowledge-panel', '.kno-kp', '.kp-blk',
+          '[data-attrid*="kc:/common/topic"]',
+        ])) featureSet.add('Knowledge Panel');
+        if (hasAny(['#imagebox_bigimages', 'g-section-with-header g-img', '.isv-r']))
+          featureSet.add('Images Pack');
+        if (hasAny(['.rllt__details', '[data-attrid*="kc:/location"]']))
+          featureSet.add('Local Pack');
+      } else if (/(^|\.)bing\.com$/i.test(host)) {
+        engine = 'bing';
+        query = clean(document.querySelector('textarea[name="q"], input[name="q"], #sb_form_q')?.value || url.searchParams.get('q') || '', 300);
+        document.querySelectorAll('#b_results > li.b_algo').forEach((container) => {
+          const anchor = container.querySelector('h2 a');
+          if (!anchor) return;
+          const href = anchor.href || '';
+          if (!href.startsWith('http')) return;
+          let parsed;
+          try { parsed = new URL(href); } catch { return; }
+          const domain = norm(parsed.hostname);
+          if (!domain || /bing\.com/i.test(domain)) return;
+          const snippet = clean(container.querySelector('.b_caption p')?.innerText || container.innerText || '', 420).replace(clean(anchor.textContent || '', 300), '');
+          pushCandidate(anchor.textContent || '', href, domain, snippet);
+        });
+        if (hasAny([
+          'cib-serp-main', 'div.codex-sky-answer',
+          '[class*="copilot" i]', '[class*="cib" i]',
+        ])) featureSet.add('AI Answer');
+        if (hasAny(['div[data-feedbk-ids*="News"]', '.news-card', 'li.b_ans .b_algoheader'])) featureSet.add('Top Stories');
+        if (hasAny(['.slide[data-ptype="Shopping"]', '.pa_content.shop', '[data-partnertag="shopping"]'])) featureSet.add('Shopping');
+        if (hasAny(['.vrhdata', '.mc_vtvc', '.video_card'])) featureSet.add('Videos');
+        if (hasAny(['.b_ans', '.b_answer', '.b_expPag', '.tbcont'])) featureSet.add('Featured Snippet');
+      } else if (host === 'duckduckgo.com' && (url.pathname.startsWith('/') || url.pathname.startsWith('/html'))) {
+        engine = 'duckduckgo';
+        query = clean(document.querySelector('input[name="q"], textarea[name="q"]')?.value || url.searchParams.get('q') || '', 300);
+        const ddgContainers = document.querySelectorAll('[data-testid="result"], .result:not(.result--ad):not(.result--sidebar)');
+        ddgContainers.forEach((container) => {
+          const cls = typeof container.className === 'string' ? container.className.toLowerCase() : '';
+          if (cls.includes('result--ad')) return;
+          const anchor = container.querySelector('h2 a, .result__title a');
+          if (!anchor) return;
+          const href = anchor.href || '';
+          if (!href.startsWith('http')) return;
+          let parsed;
+          try { parsed = new URL(href); } catch { return; }
+          const domain = norm(parsed.hostname);
+          if (!domain || /duckduckgo\.com/i.test(domain)) return;
+          const snippet = clean(container.querySelector('[data-result="snippet"], .result__snippet')?.innerText || container.innerText || '', 420).replace(clean(anchor.textContent || '', 300), '');
+          pushCandidate(anchor.textContent || '', href, domain, snippet);
+        });
+        if (hasAny(['article[data-testid="news-results"]', '.news-card', '.module--news'])) featureSet.add('News Module');
+        if (hasAny(['.module--videos', '.tile--vid', 'article[data-testid="videos-results"]'])) featureSet.add('Videos');
+        if (hasAny(['.module--shopping', 'article[data-testid="shopping-results"]'])) featureSet.add('Shopping');
+        if (hasAny(['.ai-assist', '[data-testid="ai-assist"]'])) featureSet.add('AI Answer');
+      } else {
+        return { error: 'This page is not a supported Google, Bing, or DuckDuckGo results page.' };
+      }
+
+      const results = candidates.slice(0, 10).map((item, index) => ({ rank: index + 1, ...item }));
+      return { engine, query, serpFeatures: [...featureSet], results, aioSources, pageUrl: window.location.href };
+    } catch (error) {
+      return { error: `Search page read failed: ${error?.message || 'Unknown error'}` };
+    }
+  }
+
+  function isSearchEngineUrl(url = '') {
+    return /^https:\/\/((([a-z0-9-]+\.)*google\.)|(([a-z0-9-]+\.)*bing\.com)|duckduckgo\.com)/i.test(url);
+  }
+
+  /**
    * Storage schema.
    *
    * All persisted keys live here so the popup and the service worker
@@ -666,11 +912,17 @@
     GOOGLE_ARCHIVE: 'googleInspectorArchive',
     ACTIVE_VIEW: 'inspectorActiveView',
     PENDING_GOOGLE_QUERY: 'pendingGoogleQuery',
+    PENDING_GOOGLE_ORCHESTRATION: 'pendingGoogleOrchestration',
     PENDING_CHATGPT_SNAPSHOT: 'pendingChatgptSnapshot',
     HISTORY: 'comparisonHistory',
     LAST_HISTORY_FINGERPRINT: 'lastHistoryFingerprint',
     THEME_MODE: 'inspectorThemeMode',
   });
+
+  // Orchestrations older than this are treated as stale and cleared.
+  // Tab loads shouldn't take this long; the TTL just guards against
+  // ghost entries left behind by closed tabs or crashed workers.
+  const ORCHESTRATION_TTL_MS = 90_000;
 
   // Archive retention cap per engine. chrome.storage.local quota is ~10MB;
   // an average ChatGPT capture is 20–40KB after parsing, so 200 entries
@@ -802,6 +1054,17 @@
     savePendingGoogleQuery(value) { return this.set({ [STORAGE_KEYS.PENDING_GOOGLE_QUERY]: value }); },
     clearPendingGoogleQuery()     { return this.remove(STORAGE_KEYS.PENDING_GOOGLE_QUERY); },
 
+    // Orchestration = "the popup just opened a Google tab for query X;
+    // service worker should auto-capture when that tabId finishes
+    // loading." See background.js for the onUpdated listener.
+    savePendingGoogleOrchestration(value) { return this.set({ [STORAGE_KEYS.PENDING_GOOGLE_ORCHESTRATION]: value }); },
+    async loadPendingGoogleOrchestration() {
+      const out = await this.get(STORAGE_KEYS.PENDING_GOOGLE_ORCHESTRATION);
+      const v = out?.[STORAGE_KEYS.PENDING_GOOGLE_ORCHESTRATION];
+      return v && typeof v === 'object' ? v : null;
+    },
+    clearPendingGoogleOrchestration() { return this.remove(STORAGE_KEYS.PENDING_GOOGLE_ORCHESTRATION); },
+
     // Composite write used by the popup whenever the in-memory state
     // snapshot needs to persist (after a tab switch, a capture, a theme
     // toggle, etc.). Passing only the keys that changed is fine; missing
@@ -909,6 +1172,12 @@
     generateCaptureId,
     chatgptCaptureSignature,
     googleCaptureSignature,
+    titleCaseEngine,
+    normalizeFeatureList,
+    parseGooglePayload,
+    fetchSearchResultsInPage,
+    isSearchEngineUrl,
+    ORCHESTRATION_TTL_MS,
   });
 
   root.AIQIShared = api;
