@@ -268,44 +268,6 @@ function rowsToDelimited(rows, delimiter='\t') {
   }).join(delimiter)).join('\n');
 }
 
-function buildFullExportSections() {
-  const combined = buildCombinedData();
-  const sections = [];
-  const summaryRows = [['section','metric','value']];
-  summaryRows.push(['ChatGPT','Model', lastChatgptData?.model || '']);
-  summaryRows.push(['ChatGPT','Prompt', lastChatgptData?.latestUserPrompt || '']);
-  summaryRows.push(['ChatGPT','Search origin', lastChatgptData?.searchOrigin?.label || '']);
-  summaryRows.push(['ChatGPT','Search confidence', lastChatgptData?.searchOrigin?.confidence || '']);
-  summaryRows.push(['ChatGPT','Fan-outs', lastChatgptData?.queries?.length || 0]);
-  summaryRows.push(['ChatGPT','Cited sources', lastChatgptData?.citedSources || 0]);
-  summaryRows.push(['ChatGPT','Unique sites', lastChatgptData?.uniqueDomains?.length || 0]);
-  summaryRows.push(['ChatGPT','UTM coverage', `${lastChatgptData?.utmCount || 0} / ${lastChatgptData?.totalUrls || 0}`]);
-  summaryRows.push(['Google','Query', lastGoogleData?.query || '']);
-  summaryRows.push(['Google','Engine', lastGoogleData?.engineLabel || '']);
-  summaryRows.push(['Google','Organic results', lastGoogleData?.resultCount || 0]);
-  summaryRows.push(['Google','Unique sites', lastGoogleData?.uniqueDomains?.length || 0]);
-  summaryRows.push(['Google','SERP features', (lastGoogleData?.serpFeatures || []).join('; ')]);
-  summaryRows.push(['Combined','Overlap score', combined ? `${combined.overlapScore}%` : '']);
-  summaryRows.push(['Combined','Overlap sites', combined?.overlap?.length || 0]);
-  summaryRows.push(['Combined','ChatGPT-only sites', combined?.chatOnly?.length || 0]);
-  summaryRows.push(['Combined','Google-only sites', combined?.googleOnly?.length || 0]);
-  summaryRows.push(['History','Saved runs', comparisonHistory?.length || 0]);
-  sections.push({name:'summary', rows: summaryRows});
-
-  sections.push({name:'chatgpt_fanouts', rows: [['index','query','domains'], ...((lastChatgptData?.queries||[]).map((q,i)=>[i+1,q.q,(q.domains||[]).join('; ')]))]});
-  sections.push({name:'chatgpt_sites', rows: [['domain','citation_count'], ...((lastChatgptData?.domainCounts||[]).map((d)=>[d.domain,d.count]))]});
-  sections.push({name:'chatgpt_sources', rows: [['domain','title','url','status','mentions','cited_mentions'], ...((lastChatgptData?.sources||[]).map((s)=>[s.domain||'', s.title||'', s.url||'', s.statusLabel||'', s.count||0, s.citedCount||0]))]});
-  sections.push({name:'google_features', rows: [['feature'], ...((lastGoogleData?.serpFeatures||[]).map((f)=>[f]))]});
-  sections.push({name:'google_sites', rows: [['domain'], ...((lastGoogleData?.uniqueDomains||[]).map((d)=>[d]))]});
-  sections.push({name:'google_results', rows: [['rank','domain','title','url','snippet'], ...((lastGoogleData?.results||[]).map((r)=>[r.rank,r.domain,r.title,r.url,r.snippet]))]});
-  sections.push({name:'combined_rows', rows: [['domain','chatgpt_citations','google_rank','google_title','google_url','google_snippet','overlap_label'], ...((combined?.rows||[]).map((r)=>[r.domain,r.chatgptCitations,r.googleRank,r.googleTitle,r.googleUrl,r.googleSnippet,r.overlapLabel]))]});
-  sections.push({name:'combined_missed_opportunities', rows: [['domain','google_rank','google_title'], ...((combined?.missedOpportunities||[]).map((r)=>[r.domain,r.googleRank,r.googleTitle]))]});
-  sections.push({name:'history', rows: [['saved_at','query','prompt','engine','model','browser','overlap_score','drift_added','drift_removed'], ...((comparisonHistory||[]).map((h)=>[h.savedAt||'',h.query||'',h.prompt||'',h.engineLabel||h.engine||'',h.model||'',h.browser||'',`${h.overlapScore||0}%`,h.drift?.added||0,h.drift?.removed||0]))]});
-  return sections;
-}
-
-
-
 function exportFullDataset() {
   const combined = buildCombinedData();
   const baseName = slugify(lastChatgptData?.latestUserPrompt || lastGoogleData?.query || 'inspector-export', 'inspector-export');
@@ -1449,40 +1411,65 @@ async function copyText(text, successLabel) {
 
 function exportChatgptCsv() {
   if (!lastChatgptData) return setStatus('Nothing to export yet.', 'error');
+  const d = lastChatgptData;
+  const convId = d.conversationId || '';
+  const pageUrl = d.pageUrl || '';
+  const browser = d.browser || getBrowserLabel();
+  const capturedAt = d.capturedAt || '';
+  const model = d.model || '';
+  const prompt = d.latestUserPrompt || '';
+  const originLabel = d.searchOrigin?.label || '';
+  const originConfidence = d.searchOrigin?.confidence || '';
+
   const rows = [[
-    'conversation_id','page_url','browser','captured_at','model','prompt','search_origin','search_confidence','fanout_index','fanout_query','fanout_domains','cited_domain','cited_count','source_domain','source_title','source_url','source_status','source_mentions','source_cited_mentions','total_cited_sources','utm_count','total_urls'
+    'record_type','conversation_id','page_url','browser','captured_at','model','prompt',
+    'search_origin','search_confidence','index','query','domains','domain','count',
+    'title','url','status','mentions','cited_mentions','extra'
   ]];
-  const maxLength = Math.max(lastChatgptData.queries.length, lastChatgptData.domainCounts.length, lastChatgptData.sources.length, 1);
-  for (let i = 0; i < maxLength; i += 1) {
-    const query = lastChatgptData.queries[i];
-    const domain = lastChatgptData.domainCounts[i];
-    const source = lastChatgptData.sources[i];
+  const base = [convId, pageUrl, browser, capturedAt, model, prompt, originLabel, originConfidence];
+  const empty = (n) => Array(n).fill('');
+
+  rows.push([
+    'summary', ...base, '', '', '', '', '', '', '', '', '', '',
+    `cited_sources=${d.citedSources || 0}; utm_count=${d.utmCount || 0}; total_urls=${d.totalUrls || 0}; fanouts=${(d.queries || []).length}; unique_sites=${(d.uniqueDomains || []).length}`
+  ]);
+
+  (d.queries || []).forEach((q, i) => {
+    rows.push(['fanout', ...base, String(i + 1), q.q || '', (q.domains || []).join('; '), ...empty(9)]);
+  });
+
+  (d.domainCounts || []).forEach((item) => {
+    rows.push(['cited_domain', ...base, '', '', '', item.domain || '', String(item.count ?? ''), ...empty(6)]);
+  });
+
+  (d.sources || []).forEach((s) => {
     rows.push([
-      lastChatgptData.conversationId || '',
-      lastChatgptData.pageUrl || '',
-      lastChatgptData.browser || getBrowserLabel(),
-      lastChatgptData.capturedAt || '',
-      lastChatgptData.model || '',
-      lastChatgptData.latestUserPrompt || '',
-      lastChatgptData.searchOrigin?.label || '',
-      lastChatgptData.searchOrigin?.confidence || '',
-      query ? i + 1 : '',
-      query?.q || '',
-      query?.domains?.join('; ') || '',
-      domain?.domain || '',
-      domain?.count ?? '',
-      source?.domain || '',
-      source?.title || '',
-      source?.url || '',
-      source?.statusLabel || '',
-      source?.count ?? '',
-      source?.citedCount ?? '',
-      lastChatgptData.citedSources,
-      lastChatgptData.utmCount,
-      lastChatgptData.totalUrls
+      'source', ...base, '', '', '',
+      s.domain || '', '',
+      s.title || '', s.url || '', s.statusLabel || '',
+      String(s.count ?? ''), String(s.citedCount ?? ''), ''
     ]);
-  }
-  downloadFile(`chatgpt-inspector-${lastChatgptData.conversationId || 'conversation'}.csv`, rows.map((r) => r.map(csvEscape).join(',')).join('\n'), 'text/csv;charset=utf-8');
+  });
+
+  (d.conversationTurns || []).forEach((t) => {
+    rows.push([
+      'turn_summary', ...base, String(t.index || ''), t.prompt || '', '', '', '', '', '', '', '', '',
+      `queries=${t.queryCount || 0}; cited_sources=${t.citedSourceCount || 0}; unique_sites=${t.uniqueSiteCount || 0}`
+    ]);
+    (t.queries || []).forEach((q, i) => {
+      rows.push(['turn_query', ...base, `${t.index || ''}.${i + 1}`, q.q || '', (q.domains || []).join('; '), ...empty(9)]);
+    });
+    (t.sources || []).forEach((s) => {
+      rows.push([
+        'turn_source', ...base, String(t.index || ''), '', '',
+        s.domain || '', '',
+        s.title || '', s.url || '', s.statusLabel || '',
+        String(s.count ?? ''), String(s.citedCount ?? ''), ''
+      ]);
+    });
+  });
+
+  downloadFile(`chatgpt-inspector-${convId || 'conversation'}.csv`, rows.map((r) => r.map(csvEscape).join(',')).join('\n'), 'text/csv;charset=utf-8');
   showToast('ChatGPT CSV exported');
 }
 
