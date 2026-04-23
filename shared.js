@@ -662,6 +662,8 @@
   const STORAGE_KEYS = Object.freeze({
     CHATGPT_DATA: 'chatgptInspectorData',
     GOOGLE_DATA: 'googleInspectorData',
+    CHATGPT_ARCHIVE: 'chatgptInspectorArchive',
+    GOOGLE_ARCHIVE: 'googleInspectorArchive',
     ACTIVE_VIEW: 'inspectorActiveView',
     PENDING_GOOGLE_QUERY: 'pendingGoogleQuery',
     PENDING_CHATGPT_SNAPSHOT: 'pendingChatgptSnapshot',
@@ -669,6 +671,43 @@
     LAST_HISTORY_FINGERPRINT: 'lastHistoryFingerprint',
     THEME_MODE: 'inspectorThemeMode',
   });
+
+  // Archive retention cap per engine. chrome.storage.local quota is ~10MB;
+  // an average ChatGPT capture is 20–40KB after parsing, so 200 entries
+  // gives headroom without forcing a trim UI in the early releases.
+  const ARCHIVE_MAX_ENTRIES = 200;
+
+  function generateCaptureId() {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  // Content signatures let the auto-capture path avoid appending a
+  // duplicate entry when chrome.tabs.onUpdated fires multiple times for
+  // the same page load. Popup-initiated captures bypass this check —
+  // those are explicit user actions and should always produce a new row.
+  function chatgptCaptureSignature(record) {
+    if (!record || typeof record !== 'object') return '';
+    return [
+      record.conversationId || '',
+      record.model || '',
+      (record.queries || []).length,
+      record.citedSources || 0,
+      record.totalUrls || 0,
+      record.sources?.[0]?.url || '',
+      (record.latestUserPrompt || '').slice(0, 80),
+    ].join('||');
+  }
+
+  function googleCaptureSignature(record) {
+    if (!record || typeof record !== 'object') return '';
+    return [
+      record.engine || '',
+      record.query || '',
+      record.resultCount || 0,
+      record.results?.[0]?.url || '',
+      (record.uniqueDomains || []).join(','),
+    ].join('||');
+  }
 
   // Serialise concurrent writes within a single execution context so the
   // popup's rapid-fire auto-saves (e.g. switchTab → saveLocalState) don't
@@ -704,6 +743,58 @@
     // named setter to keep the schema discoverable.
     saveChatgptData(value) { return this.set({ [STORAGE_KEYS.CHATGPT_DATA]: value }); },
     saveGoogleData(value)  { return this.set({ [STORAGE_KEYS.GOOGLE_DATA]: value }); },
+
+    async loadChatgptArchive() {
+      const out = await this.get(STORAGE_KEYS.CHATGPT_ARCHIVE);
+      return Array.isArray(out?.[STORAGE_KEYS.CHATGPT_ARCHIVE]) ? out[STORAGE_KEYS.CHATGPT_ARCHIVE] : [];
+    },
+
+    async loadGoogleArchive() {
+      const out = await this.get(STORAGE_KEYS.GOOGLE_ARCHIVE);
+      return Array.isArray(out?.[STORAGE_KEYS.GOOGLE_ARCHIVE]) ? out[STORAGE_KEYS.GOOGLE_ARCHIVE] : [];
+    },
+
+    // Append a captured ChatGPT snapshot to the archive. Stamps an id and
+    // capturedAt if missing, trims to ARCHIVE_MAX_ENTRIES (newest first),
+    // and when skipIfUnchanged is set returns the existing head entry
+    // instead of appending a content-duplicate. Returns the stored entry.
+    async appendChatgptCapture(record, options = {}) {
+      if (!record || typeof record !== 'object') return null;
+      const { skipIfUnchanged = false } = options;
+      const archive = await this.loadChatgptArchive();
+      if (skipIfUnchanged && archive.length) {
+        const prevSig = chatgptCaptureSignature(archive[0]);
+        const nextSig = chatgptCaptureSignature(record);
+        if (prevSig && prevSig === nextSig) return archive[0];
+      }
+      const entry = {
+        ...record,
+        id: record.id || generateCaptureId(),
+        capturedAt: record.capturedAt || new Date().toISOString(),
+      };
+      const next = [entry, ...archive].slice(0, ARCHIVE_MAX_ENTRIES);
+      await this.set({ [STORAGE_KEYS.CHATGPT_ARCHIVE]: next });
+      return entry;
+    },
+
+    async appendGoogleCapture(record, options = {}) {
+      if (!record || typeof record !== 'object') return null;
+      const { skipIfUnchanged = false } = options;
+      const archive = await this.loadGoogleArchive();
+      if (skipIfUnchanged && archive.length) {
+        const prevSig = googleCaptureSignature(archive[0]);
+        const nextSig = googleCaptureSignature(record);
+        if (prevSig && prevSig === nextSig) return archive[0];
+      }
+      const entry = {
+        ...record,
+        id: record.id || generateCaptureId(),
+        capturedAt: record.capturedAt || new Date().toISOString(),
+      };
+      const next = [entry, ...archive].slice(0, ARCHIVE_MAX_ENTRIES);
+      await this.set({ [STORAGE_KEYS.GOOGLE_ARCHIVE]: next });
+      return entry;
+    },
     saveActiveView(value)  { return this.set({ [STORAGE_KEYS.ACTIVE_VIEW]: value }); },
     saveHistory(value)     { return this.set({ [STORAGE_KEYS.HISTORY]: value }); },
     saveThemeMode(value)   { return this.set({ [STORAGE_KEYS.THEME_MODE]: value }); },
@@ -814,6 +905,10 @@
     SETTINGS_KEY,
     storage,
     STORAGE_KEYS,
+    ARCHIVE_MAX_ENTRIES,
+    generateCaptureId,
+    chatgptCaptureSignature,
+    googleCaptureSignature,
   });
 
   root.AIQIShared = api;

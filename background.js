@@ -56,7 +56,13 @@ async function maybeCaptureTab(tabId, url) {
         browser: 'Background capture',
         capturedAt: new Date().toISOString(),
       });
-      if (parsed) await storage.saveChatgptData(parsed);
+      if (parsed) {
+        await storage.saveChatgptData(parsed);
+        // skipIfUnchanged avoids spamming the archive when chrome.tabs
+        // onUpdated fires multiple `complete` events for a single page
+        // load (the conversation content is identical across those).
+        await storage.appendChatgptCapture(parsed, { skipIfUnchanged: true });
+      }
     }
   } catch {
     // Ignore: auto-capture is best-effort; users can always click Refresh.

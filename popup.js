@@ -2095,6 +2095,8 @@ async function inspectCurrentTab() {
       if (!result) return setStatus('No data returned from the page.', 'error');
       if (result.error) return setStatus(result.error, 'error');
       lastChatgptData = { ...parseChatgptPayload(result.payload), conversationId: result.conversationId, pageUrl: result.pageUrl || tab.url || '', browser: getBrowserLabel(), capturedAt: new Date().toISOString() };
+      const archivedChatgpt = await self.AIQIShared.storage.appendChatgptCapture(lastChatgptData);
+      if (archivedChatgpt?.id) lastChatgptData.id = archivedChatgpt.id;
       await self.AIQIShared.storage.savePendingChatgptSnapshot(lastChatgptData);
       await saveLocalState();
       renderChatgpt(lastChatgptData);
@@ -2117,6 +2119,8 @@ async function inspectCurrentTab() {
       if (!result) return setStatus('No data returned from the search page.', 'error');
       if (result.error) return setStatus(result.error, 'error');
       lastGoogleData = { ...parseGooglePayload(result, pendingGoogleQuery), pageUrl: result.pageUrl || tab.url || '', browser: getBrowserLabel() };
+      const archivedGoogle = await self.AIQIShared.storage.appendGoogleCapture(lastGoogleData);
+      if (archivedGoogle?.id) lastGoogleData.id = archivedGoogle.id;
       await self.AIQIShared.storage.clearPendingGoogleQuery();
       await saveLocalState();
       renderChatgpt(lastChatgptData);
