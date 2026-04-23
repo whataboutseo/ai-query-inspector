@@ -230,9 +230,23 @@
     <section id="panelCombined" class="tab-panel hidden combined-layout">
       <section class="summary-grid combined-grid">
         <article class="card metric-card overlap-card">
-          <span class="metric-label">Overlap score</span>
+          <span class="metric-label">Overlap score <span class="metric-label-hint" title="F1 score — harmonic mean of precision and recall. 100% means ChatGPT's citations and the SERP results are identical sets of domains.">&#9432;</span></span>
           <div id="combinedOverlapScore" class="metric-value">0%</div>
           <div id="combinedOverlapMeta" class="metric-meta">0 of 0 ChatGPT sites appear in Google results</div>
+          <div class="overlap-breakdown">
+            <div class="overlap-stat" title="Precision: share of ChatGPT-cited sites that also appear in the SERP. High precision = ChatGPT's citations are trustworthy vs. the search engine.">
+              <span class="overlap-stat__label">Precision</span>
+              <span id="combinedPrecisionScore" class="overlap-stat__value">0%</span>
+            </div>
+            <div class="overlap-stat" title="Recall: share of top SERP domains that ChatGPT also cited. High recall = ChatGPT is surfacing what the search engine shows at the top.">
+              <span class="overlap-stat__label">Recall</span>
+              <span id="combinedRecallScore" class="overlap-stat__value">0%</span>
+            </div>
+            <div class="overlap-stat" title="Jaccard similarity: intersection divided by union of both domain sets.">
+              <span class="overlap-stat__label">Jaccard</span>
+              <span id="combinedJaccardScore" class="overlap-stat__value">0%</span>
+            </div>
+          </div>
         </article>
         <article class="card metric-card">
           <span class="metric-label">Overlap sites</span>

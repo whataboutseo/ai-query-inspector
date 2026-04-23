@@ -1862,3 +1862,53 @@ body.light-mode .switch__slider {
   border-color: rgba(13, 28, 74, 0.2);
 }
 body.light-mode .switch__slider::after { background: #ffffff; }
+
+/* -----------------------------------------------------------------------
+   Overlap score breakdown (precision / recall / Jaccard chips inside
+   the combined-tab overlap metric card).
+   ----------------------------------------------------------------------- */
+.metric-label-hint {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--muted, #9aa3b2);
+  font-size: 11px;
+  cursor: help;
+  opacity: 0.75;
+}
+.overlap-breakdown {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.overlap-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  cursor: help;
+}
+.overlap-stat__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #9aa3b2);
+}
+.overlap-stat__value {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text, #e7ecf7);
+}
+body.light-mode .overlap-stat {
+  background: rgba(13, 28, 74, 0.04) !important;
+  border-color: rgba(13, 28, 74, 0.15) !important;
+}
+body.light-mode .overlap-stat__label { color: #3d4e86 !important; }
+body.light-mode .overlap-stat__value { color: #13255d !important; }
+body.light-mode .metric-label-hint   { color: #3d4e86 !important; }

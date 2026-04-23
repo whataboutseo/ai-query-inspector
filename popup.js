@@ -89,6 +89,9 @@ const els = {
   // Combined
   combinedOverlapScore: document.getElementById('combinedOverlapScore'),
   combinedOverlapMeta: document.getElementById('combinedOverlapMeta'),
+  combinedPrecisionScore: document.getElementById('combinedPrecisionScore'),
+  combinedRecallScore: document.getElementById('combinedRecallScore'),
+  combinedJaccardScore: document.getElementById('combinedJaccardScore'),
   combinedOverlapCount: document.getElementById('combinedOverlapCount'),
   combinedChatgptOnlyCount: document.getElementById('combinedChatgptOnlyCount'),
   combinedGoogleOnlyCount: document.getElementById('combinedGoogleOnlyCount'),
@@ -891,7 +894,24 @@ function buildCombinedData() {
   const overlap = [...chatSet].filter((domain) => googleSet.has(domain)).sort();
   const chatOnly = [...chatSet].filter((domain) => !googleSet.has(domain)).sort();
   const googleOnly = [...googleSet].filter((domain) => !chatSet.has(domain)).sort();
-  const overlapScore = chatSet.size ? Math.round((overlap.length / chatSet.size) * 100) : 0;
+  // Overlap is a set-comparison problem; report it through the standard IR
+  // lenses so users can see which kind of agreement they're getting:
+  //   precision = |A∩B| / |A|   — of the sites ChatGPT cited, share also on SERP
+  //   recall    = |A∩B| / |B|   — of the SERP domains, share ChatGPT cited
+  //   f1        = 2PR / (P+R)   — harmonic mean; headline score
+  //   jaccard   = |A∩B| / |A∪B| — symmetric set similarity
+  // `overlapScore` retains its historical meaning (precision) for the
+  // CSV history column — we don't want to silently change persisted
+  // numbers — while the UI headline is now F1, which is what users
+  // actually want ("how similar are these two sets?").
+  const unionSize = new Set([...chatSet, ...googleSet]).size;
+  const precisionScore = chatSet.size ? Math.round((overlap.length / chatSet.size) * 100) : 0;
+  const recallScore    = googleSet.size ? Math.round((overlap.length / googleSet.size) * 100) : 0;
+  const jaccardScore   = unionSize ? Math.round((overlap.length / unionSize) * 100) : 0;
+  const f1Score = (precisionScore + recallScore) > 0
+    ? Math.round((2 * precisionScore * recallScore) / (precisionScore + recallScore))
+    : 0;
+  const overlapScore = precisionScore;
 
   const rows = [];
   const allDomains = [...new Set([...chatSet, ...googleSet])].sort((a, b) => {
@@ -932,7 +952,11 @@ function buildCombinedData() {
     overlap,
     chatOnly,
     googleOnly,
-    overlapScore,
+    overlapScore,       // alias for precisionScore (preserved for history/CSV compatibility)
+    precisionScore,
+    recallScore,
+    f1Score,
+    jaccardScore,
     overlapMeta: `${overlap.length} of ${chatSet.size} ChatGPT sites appear in ${lastGoogleData.engineLabel || 'search'} results`,
     engine: lastGoogleData.engine || 'google',
     engineLabel: lastGoogleData.engineLabel || 'Google',
@@ -1065,6 +1089,9 @@ function renderCombined() {
   if (!data) {
     els.combinedOverlapScore.textContent = '0%';
     els.combinedOverlapMeta.textContent = '0 of 0 ChatGPT sites appear in search results';
+    if (els.combinedPrecisionScore) els.combinedPrecisionScore.textContent = '0%';
+    if (els.combinedRecallScore) els.combinedRecallScore.textContent = '0%';
+    if (els.combinedJaccardScore) els.combinedJaccardScore.textContent = '0%';
     els.combinedOverlapCount.textContent = '0';
     els.combinedChatgptOnlyCount.textContent = '0';
     els.combinedGoogleOnlyCount.textContent = '0';
@@ -1077,8 +1104,14 @@ function renderCombined() {
     return;
   }
 
-  els.combinedOverlapScore.textContent = `${data.overlapScore}%`;
+  // Headline is F1, which is a better "how similar are these sets" number
+  // than raw precision (the old overlapScore). The breakdown below shows
+  // precision + recall + Jaccard so users can see where the disagreement is.
+  els.combinedOverlapScore.textContent = `${data.f1Score}%`;
   els.combinedOverlapMeta.textContent = data.overlapMeta;
+  if (els.combinedPrecisionScore) els.combinedPrecisionScore.textContent = `${data.precisionScore}%`;
+  if (els.combinedRecallScore) els.combinedRecallScore.textContent = `${data.recallScore}%`;
+  if (els.combinedJaccardScore) els.combinedJaccardScore.textContent = `${data.jaccardScore}%`;
   els.combinedOverlapCount.textContent = String(data.overlap.length);
   els.combinedChatgptOnlyCount.textContent = String(data.chatOnly.length);
   els.combinedGoogleOnlyCount.textContent = String(data.googleOnly.length);
