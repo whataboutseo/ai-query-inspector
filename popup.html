@@ -526,56 +526,148 @@
       <span id="combinedGoogleOnlyCount" class="visually-hidden">0</span>
     </section>
 
-    <section id="panelHistory" class="tab-panel hidden history-layout" role="tabpanel" aria-labelledby="tabHistory" tabindex="0">
-      <section class="summary-grid">
-        <article class="card metric-card">
-          <span class="metric-label">Saved runs</span>
-          <div id="historyRunCount" class="metric-value">0</div>
-        </article>
-        <article class="card metric-card">
-          <span class="metric-label">Tracked queries</span>
-          <div id="historyQueryCount" class="metric-value">0</div>
-        </article>
-        <article class="card metric-card">
-          <span class="metric-label">Engines seen</span>
-          <div id="historyEngineCount" class="metric-value">0</div>
-        </article>
-        <article class="card metric-card">
-          <span class="metric-label">Latest overlap</span>
-          <div id="historyLatestOverlap" class="metric-subvalue smallish">0%</div>
-        </article>
-      </section>
+    <section id="panelHistory" class="tab-panel hidden" role="tabpanel" aria-labelledby="tabHistory" tabindex="0">
+      <!-- Stage 5.6 two-level History:
+           - .history-view[data-history="list"]   — level 1: prompt-hero
+             + .history-head KPIs + .conv-list of conversations.
+           - .history-view[data-history="detail"] — level 2: .back-link +
+             conv-detail-head + conversation-scoped KPIs + .timeline of runs.
+           Only one has .active at a time. Clicking a .conv-item swaps. -->
 
-      <section class="card utility-card search-capture-card history-info-card collapsible-section">
-        <div class="section-head compact">
-          <h2><span class="info-head-icon" aria-hidden="true">🕓</span>History</h2>
-          <div class="section-actions">
-            <button id="exportHistoryCsvBtn" class="ghost-btn">History CSV</button>
-            <button id="clearHistoryBtn" class="ghost-btn danger-ghost">Clear</button>
+      <div class="history-view active" data-history="list">
+        <section class="prompt-hero">
+          <div class="prompt-left">
+            <div class="t-eyebrow">SAVED RUNS</div>
+            <div class="quote" id="historyHeadline">Local history of every ChatGPT ↔ Google comparison.</div>
+            <div class="meta">
+              <span class="chip mono" id="historyModeChip">on this device</span>
+              <span class="sep" aria-hidden="true">·</span>
+              <span class="chip mono" id="historyTotalChip">0 runs</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="history-head">
+          <div class="h-card">
+            <div class="t-eyebrow">SAVED RUNS</div>
+            <div class="val" id="historyRunCount">0</div>
+            <div class="sub">Total comparisons</div>
+          </div>
+          <div class="h-card">
+            <div class="t-eyebrow">CONVERSATIONS</div>
+            <div class="val" id="historyQueryCount">0</div>
+            <div class="sub">Unique chats tracked</div>
+          </div>
+          <div class="h-card">
+            <div class="t-eyebrow">ENGINES</div>
+            <div class="val" id="historyEngineCount">0</div>
+            <div class="sub">Distinct search engines</div>
+          </div>
+          <div class="h-card">
+            <div class="t-eyebrow">LATEST F1</div>
+            <div class="val" id="historyLatestOverlap">0%</div>
+            <div class="sub">Most recent overlap</div>
+          </div>
+        </section>
+
+        <div class="section" data-collapse>
+          <div class="section-head">
+            <div class="title">
+              <span class="s-icon" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="none"><path d="M4 5h12M4 10h12M4 15h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </span>
+              <div class="title-text">
+                <h3>Conversations</h3>
+                <span class="sub" id="historySummary">NEWEST FIRST</span>
+              </div>
+            </div>
+            <div class="tools">
+              <button id="exportHistoryCsvBtn" class="btn btn-outline" type="button" onclick="event.stopPropagation()">CSV</button>
+              <button id="clearHistoryBtn" class="btn btn-outline" type="button" onclick="event.stopPropagation()">Clear all</button>
+              <span class="chevron" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="none"><path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="history-search-row">
+              <input
+                type="search"
+                id="historySearchInput"
+                class="history-search-input"
+                placeholder="Filter by conversation, query, prompt, engine, or domain…"
+                aria-label="Filter saved comparisons"
+                autocomplete="off"
+              />
+              <span id="historySearchMeta" class="history-search-meta" hidden></span>
+            </div>
+            <div id="historyEmpty" class="empty-state">No saved comparisons yet. Capture a ChatGPT conversation and a search results page to create one.</div>
+            <div id="historyWrap" class="conv-list" hidden></div>
           </div>
         </div>
-        <p class="small-note">Each saved run keeps local page context such as prompt, model, engine, timestamp, browser label, overlap, and drift against the prior capture of the same query.</p>
-      </section>
+      </div>
 
-      <section class="card">
-        <div class="section-head">
-          <h2><span class="info-head-icon" aria-hidden="true">📁</span>Saved comparisons</h2>
-          <span id="historySummary" class="section-summary hidden"></span>
+      <div class="history-view" data-history="detail" hidden>
+        <a class="back-link" href="#" id="historyBackLink">
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12 5 6 10l6 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Back to conversations</span>
+        </a>
+
+        <section class="conv-detail-head">
+          <div class="t-eyebrow" id="convDetailEyebrow">CONVERSATION</div>
+          <div class="quote" id="convDetailTitle" style="font-family: var(--font-display); font-size: var(--fs-display-md); line-height: 1.15; color: var(--ink); max-width: 860px;">—</div>
+          <div class="meta" style="margin-top: 14px; display: flex; gap: 14px; flex-wrap: wrap; font-size: var(--fs-body-xs); color: var(--ink-3);">
+            <span class="chip mono" id="convDetailEngineChip">—</span>
+            <span class="chip mono" id="convDetailModelChip">—</span>
+            <span class="chip mono" id="convDetailSpanChip">—</span>
+          </div>
+        </section>
+
+        <section class="history-head">
+          <div class="h-card">
+            <div class="t-eyebrow">RUNS</div>
+            <div class="val" id="convDetailRuns">0</div>
+            <div class="sub">Saved comparisons</div>
+          </div>
+          <div class="h-card">
+            <div class="t-eyebrow">QUERIES</div>
+            <div class="val" id="convDetailQueries">0</div>
+            <div class="sub">Distinct search queries</div>
+          </div>
+          <div class="h-card">
+            <div class="t-eyebrow">ENGINES</div>
+            <div class="val" id="convDetailEngines">0</div>
+            <div class="sub">Search engines seen</div>
+          </div>
+          <div class="h-card">
+            <div class="t-eyebrow">LATEST F1</div>
+            <div class="val" id="convDetailLatestOverlap">0%</div>
+            <div class="sub">Most recent run</div>
+          </div>
+        </section>
+
+        <div class="section" data-collapse>
+          <div class="section-head">
+            <div class="title">
+              <span class="s-icon" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="6.5" stroke="currentColor" stroke-width="1.6"/><path d="M10 6v4l2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <div class="title-text">
+                <h3>Run timeline</h3>
+                <span class="sub">OLDEST LAST · NEWEST ON TOP</span>
+              </div>
+            </div>
+            <div class="tools">
+              <span class="chevron" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="none"><path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="timeline" id="convDetailTimeline"></div>
+          </div>
         </div>
-        <div class="history-search-row">
-          <input
-            type="search"
-            id="historySearchInput"
-            class="history-search-input"
-            placeholder="Filter by conversation, query, prompt, engine, or domain…"
-            aria-label="Filter saved comparisons"
-            autocomplete="off"
-          />
-          <span id="historySearchMeta" class="history-search-meta" hidden></span>
-        </div>
-        <div id="historyEmpty" class="empty-state">No saved comparisons yet. Capture a ChatGPT conversation and a search results page to create one.</div>
-        <div id="historyWrap" class="result-wrap hidden"></div>
-      </section>
+      </div>
     </section>
 
     <section class="card privacy-card">

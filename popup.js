@@ -210,6 +210,8 @@ let userPickedChatgptId = null;
 let userPickedGoogleId = null;
 // Stage 4.4 history filter. Lowercased for case-insensitive matching.
 let historySearchTerm = '';
+// Stage 5.6 two-level History: null = list view, bucket key = detail view.
+let selectedConversationKey = null;
 
 function maybeSetFullPageClass() {
   if (isFullPage) document.body.classList.add('full-page');
@@ -1620,149 +1622,269 @@ function buildOverlapSparkline(seriesAsc) {
   return svg;
 }
 
+// Stage 5.6: key a history entry into a "conversation" bucket. Prefer
+// the ChatGPT sidebar title (stable across turns); fall back to the
+// first seen query so older pre-title entries still group sanely.
+function historyConversationKey(entry) {
+  const title = sanitizeString(entry?.conversationTitle || '', 120);
+  if (title) return `t:${title.toLowerCase()}`;
+  const q = sanitizeString(entry?.query || '', 120);
+  if (q) return `q:${q.toLowerCase()}`;
+  return 'unknown';
+}
+
+function bucketHistoryByConversation(history) {
+  const buckets = new Map();
+  history.forEach((entry) => {
+    const key = historyConversationKey(entry);
+    if (!buckets.has(key)) {
+      buckets.set(key, {
+        key,
+        title: entry.conversationTitle || entry.query || 'Untitled conversation',
+        runs: [],
+      });
+    }
+    buckets.get(key).runs.push(entry);
+  });
+  // Sort runs within each bucket newest-first (history is already
+  // newest-first globally, but stable-sort for safety).
+  for (const b of buckets.values()) {
+    b.runs.sort((a, b2) => String(b2.savedAt || '').localeCompare(String(a.savedAt || '')));
+    const latest = b.runs[0];
+    b.latestOverlap = Number(latest?.overlapScore) || 0;
+    b.latestEngine = latest?.engineLabel || latest?.engine || '';
+    b.latestModel = latest?.model || '';
+    b.latestPrompt = latest?.prompt || '';
+    b.latestSavedAt = latest?.savedAt || '';
+    b.earliestSavedAt = b.runs[b.runs.length - 1]?.savedAt || '';
+    const prev = Number(b.runs[1]?.overlapScore) || null;
+    b.driftDelta = prev == null ? null : b.latestOverlap - prev;
+    b.engines = new Set(b.runs.map((r) => r.engineLabel || r.engine).filter(Boolean));
+    b.queries = new Set(b.runs.map((r) => r.query).filter(Boolean));
+  }
+  return [...buckets.values()].sort((a, b) => String(b.latestSavedAt || '').localeCompare(String(a.latestSavedAt || '')));
+}
+
 function renderHistory() {
   const history = comparisonHistory || [];
-  els.historyRunCount.textContent = String(history.length);
-  els.historyQueryCount.textContent = String(new Set(history.map((h) => h.query).filter(Boolean)).size);
-  els.historyEngineCount.textContent = String(new Set(history.map((h) => h.engineLabel || h.engine).filter(Boolean)).size);
-  els.historyLatestOverlap.textContent = history.length ? `${history[0].overlapScore}%` : '0%';
-  els.historyWrap.innerHTML = '';
 
-  // Stage 4.4 search filter. Match is a case-insensitive substring test
-  // across query, prompt, engine label, model, and captured domains so
-  // users can find runs by any of those facets without a chip picker.
+  // Headline KPI cards (always reflect the full history, not the filter).
+  if (els.historyRunCount) els.historyRunCount.textContent = String(history.length);
+  const allBuckets = bucketHistoryByConversation(history);
+  if (els.historyQueryCount) els.historyQueryCount.textContent = String(allBuckets.length);
+  if (els.historyEngineCount) els.historyEngineCount.textContent = String(new Set(history.map((h) => h.engineLabel || h.engine).filter(Boolean)).size);
+  if (els.historyLatestOverlap) els.historyLatestOverlap.textContent = history.length ? `${history[0].overlapScore}%` : '0%';
+  const totalChip = document.getElementById('historyTotalChip');
+  if (totalChip) totalChip.textContent = `${history.length} run${history.length === 1 ? '' : 's'}`;
+
+  // If the user drilled into a conversation but it disappeared (trim,
+  // delete), snap back to the list view.
+  if (selectedConversationKey && !allBuckets.some((b) => b.key === selectedConversationKey)) {
+    selectedConversationKey = null;
+  }
+
+  const listView = document.querySelector('#panelHistory .history-view[data-history="list"]');
+  const detailView = document.querySelector('#panelHistory .history-view[data-history="detail"]');
+  if (listView) { listView.classList.toggle('active', !selectedConversationKey); listView.hidden = !!selectedConversationKey; }
+  if (detailView) { detailView.classList.toggle('active', !!selectedConversationKey); detailView.hidden = !selectedConversationKey; }
+
+  if (selectedConversationKey) {
+    renderHistoryDetail(allBuckets.find((b) => b.key === selectedConversationKey));
+  } else {
+    renderHistoryList(allBuckets);
+  }
+}
+
+function renderHistoryList(buckets) {
+  const wrap = els.historyWrap;
+  if (!wrap) return;
+  wrap.innerHTML = '';
   const term = historySearchTerm.trim().toLowerCase();
   const matches = term
-    ? history.filter((h) => {
+    ? buckets.filter((b) => {
         const haystack = [
-          h.query, h.prompt, h.conversationTitle, h.engineLabel, h.engine, h.model, h.browser,
-          ...(Array.isArray(h.googleDomains) ? h.googleDomains : []),
-          ...(Array.isArray(h.chatgptDomains) ? h.chatgptDomains : []),
+          b.title, b.latestPrompt, b.latestEngine, b.latestModel,
+          ...[...b.queries], ...[...b.engines],
+          ...b.runs.flatMap((r) => [
+            ...(Array.isArray(r.googleDomains) ? r.googleDomains : []),
+            ...(Array.isArray(r.chatgptDomains) ? r.chatgptDomains : []),
+            r.browser,
+          ]),
         ].filter(Boolean).join(' ').toLowerCase();
         return haystack.includes(term);
       })
-    : history;
+    : buckets;
 
-  const hasAny = history.length > 0;
+  const hasAny = buckets.length > 0;
   const hasVisible = matches.length > 0;
-  els.historyEmpty.classList.toggle('hidden', hasAny);
-  els.historyWrap.classList.toggle('hidden', !hasVisible);
-  els.historySummary.classList.toggle('hidden', !hasAny);
-  els.historySummary.textContent = hasAny
-    ? `${matches.length} of ${history.length} saved local comparison${history.length === 1 ? '' : 's'}`
-    : '';
-
+  if (els.historyEmpty) els.historyEmpty.hidden = hasAny;
+  wrap.hidden = !hasVisible;
+  if (els.historySummary) {
+    els.historySummary.textContent = hasAny
+      ? `${matches.length} OF ${buckets.length} · NEWEST FIRST`
+      : 'NEWEST FIRST';
+  }
   if (els.historySearchMeta) {
     if (term && hasAny) {
       els.historySearchMeta.hidden = false;
-      els.historySearchMeta.textContent = hasVisible
-        ? `${matches.length} match${matches.length === 1 ? '' : 'es'}`
-        : 'No matches';
+      els.historySearchMeta.textContent = hasVisible ? `${matches.length} match${matches.length === 1 ? '' : 'es'}` : 'No matches';
     } else {
       els.historySearchMeta.hidden = true;
       els.historySearchMeta.textContent = '';
     }
   }
 
-  // Pre-bucket full history by query so each card can render a sparkline
-  // of overlap-over-time for its own query — sparklines should show the
-  // full series even when the list itself is filtered.
-  const byQuery = new Map();
-  history.forEach((h) => {
-    const key = (h.query || '').toLowerCase();
-    if (!byQuery.has(key)) byQuery.set(key, []);
-    byQuery.get(key).push(h);
-  });
-  // Sort each bucket ascending by savedAt so polyline reads left-to-right
-  // as "oldest -> newest".
-  for (const list of byQuery.values()) {
-    list.sort((a, b) => String(a.savedAt || '').localeCompare(String(b.savedAt || '')));
-  }
+  matches.forEach((bucket) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'conv-item';
+    item.setAttribute('aria-label', `Open ${bucket.title}`);
 
-  matches.forEach((item) => {
-    const card = document.createElement('div');
-    card.className = 'result-row history-card';
-
-    const top = document.createElement('div');
-    top.className = 'history-top';
-    const titleWrap = document.createElement('div');
+    const left = document.createElement('div');
     const title = document.createElement('div');
-    title.className = 'history-title';
-    title.textContent = item.query || 'Untitled query';
+    title.className = 'conv-title';
+    title.textContent = bucket.title;
+    const prompt = document.createElement('div');
+    prompt.className = 'conv-prompt';
+    prompt.textContent = bucket.latestPrompt || [...bucket.queries].join(' · ') || '—';
+    left.appendChild(title);
+    left.appendChild(prompt);
+
+    const runs = document.createElement('div');
+    runs.className = 'conv-runs';
+    const runsBig = document.createElement('span');
+    runsBig.className = 'big';
+    runsBig.textContent = String(bucket.runs.length);
+    const runsSmall = document.createElement('span');
+    runsSmall.className = 'small';
+    runsSmall.textContent = bucket.runs.length === 1 ? 'SAVED RUN' : 'SAVED RUNS';
+    runs.appendChild(runsBig);
+    runs.appendChild(runsSmall);
+
+    const overlap = document.createElement('div');
+    overlap.className = 'conv-overlap';
+    const pct = document.createElement('span');
+    pct.className = 'pct';
+    pct.innerHTML = `${bucket.latestOverlap}<span class="u">%</span>`;
+    overlap.appendChild(pct);
+    if (bucket.driftDelta != null) {
+      const drift = document.createElement('span');
+      const cls = bucket.driftDelta > 0 ? 'up' : bucket.driftDelta < 0 ? 'down' : 'flat';
+      drift.className = `drift ${cls}`;
+      drift.textContent = bucket.driftDelta > 0 ? `+${bucket.driftDelta}` : String(bucket.driftDelta);
+      overlap.appendChild(drift);
+    }
+
+    const arrow = document.createElement('div');
+    arrow.className = 'arrow';
+    arrow.textContent = '→';
+
+    item.appendChild(left);
+    item.appendChild(runs);
+    item.appendChild(overlap);
+    item.appendChild(arrow);
+
+    item.addEventListener('click', () => {
+      selectedConversationKey = bucket.key;
+      renderHistory();
+    });
+
+    wrap.appendChild(item);
+  });
+}
+
+function renderHistoryDetail(bucket) {
+  if (!bucket) { selectedConversationKey = null; return; }
+  const eyebrow = document.getElementById('convDetailEyebrow');
+  const titleEl = document.getElementById('convDetailTitle');
+  const engineChip = document.getElementById('convDetailEngineChip');
+  const modelChip = document.getElementById('convDetailModelChip');
+  const spanChip = document.getElementById('convDetailSpanChip');
+  const runsEl = document.getElementById('convDetailRuns');
+  const queriesEl = document.getElementById('convDetailQueries');
+  const enginesEl = document.getElementById('convDetailEngines');
+  const latestEl = document.getElementById('convDetailLatestOverlap');
+  const timeline = document.getElementById('convDetailTimeline');
+
+  if (eyebrow) eyebrow.textContent = 'CONVERSATION · ' + (bucket.runs.length === 1 ? '1 RUN' : `${bucket.runs.length} RUNS`);
+  if (titleEl) titleEl.textContent = bucket.title;
+  if (engineChip) engineChip.textContent = bucket.latestEngine || 'Unknown engine';
+  if (modelChip) modelChip.textContent = bucket.latestModel || 'Unknown model';
+  if (spanChip) {
+    const first = bucket.earliestSavedAt ? new Date(bucket.earliestSavedAt) : null;
+    const last = bucket.latestSavedAt ? new Date(bucket.latestSavedAt) : null;
+    spanChip.textContent = first && last
+      ? `${first.toLocaleDateString()} → ${last.toLocaleDateString()}`
+      : '—';
+  }
+  if (runsEl) runsEl.textContent = String(bucket.runs.length);
+  if (queriesEl) queriesEl.textContent = String(bucket.queries.size);
+  if (enginesEl) enginesEl.textContent = String(bucket.engines.size);
+  if (latestEl) latestEl.textContent = `${bucket.latestOverlap}%`;
+
+  if (!timeline) return;
+  timeline.innerHTML = '';
+  bucket.runs.forEach((run, idx) => {
+    const card = document.createElement('div');
+    card.className = 'tl-item' + (idx === 0 ? '' : ' past');
+
+    const left = document.createElement('div');
+    const date = document.createElement('div');
+    date.className = 'date';
+    date.textContent = run.savedAt ? new Date(run.savedAt).toLocaleString() : '—';
+    const prompt = document.createElement('div');
+    prompt.className = 'tl-prompt';
+    prompt.textContent = run.query || run.prompt || 'Untitled run';
     const meta = document.createElement('div');
-    meta.className = 'history-meta';
-    const metaParts = [
-      item.conversationTitle ? `Chat: ${item.conversationTitle}` : '',
-      item.engineLabel || item.engine || 'Search',
-      item.model || 'Unknown model',
-      new Date(item.savedAt).toLocaleString(),
-    ].filter(Boolean);
-    meta.textContent = metaParts.join(' • ');
-    titleWrap.appendChild(title);
-    titleWrap.appendChild(meta);
+    meta.className = 'tl-meta';
+    [
+      run.engineLabel || run.engine,
+      run.model,
+      `${run.googleResultCount || 0} results`,
+      `${(run.chatgptDomains || []).length} ChatGPT sites`,
+      `${(run.googleDomains || []).length} search sites`,
+      run.browser,
+    ].filter(Boolean).forEach((text, i) => {
+      const s = document.createElement('span');
+      if (i === 1 || i === 5) s.className = 'mono';
+      s.textContent = text;
+      meta.appendChild(s);
+    });
+    left.appendChild(date);
+    left.appendChild(prompt);
+    left.appendChild(meta);
 
-    const overlapWrap = document.createElement('div');
-    overlapWrap.className = 'history-overlap';
-    const overlap = document.createElement('span');
-    overlap.className = 'site-count';
-    overlap.textContent = `${item.overlapScore}% overlap`;
-    overlapWrap.appendChild(overlap);
-
-    // Stage 3.5: sparkline of overlap-over-time for this query (if we
-    // have at least 2 saved captures of it). Renders after the number
-    // so the eye naturally reads left-to-right: "X% overlap [spark]".
-    const series = (byQuery.get((item.query || '').toLowerCase()) || []).map((h) => Number(h.overlapScore) || 0);
-    const spark = buildOverlapSparkline(series);
-    if (spark) overlapWrap.appendChild(spark);
-
-    // Stage 4.4 per-entry delete. Uses the stable entry id
-    // (fingerprint from persistHistorySnapshot) so filtered-view
-    // deletes still target the right row.
+    const right = document.createElement('div');
+    right.className = 'tl-right';
+    const overlap = document.createElement('div');
+    overlap.className = 'tl-overlap';
+    overlap.innerHTML = `${run.overlapScore}<span class="u">%</span>`;
+    right.appendChild(overlap);
+    const priorRun = bucket.runs[idx + 1];
+    if (priorRun) {
+      const delta = Number(run.overlapScore) - Number(priorRun.overlapScore);
+      const cls = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+      const drift = document.createElement('span');
+      drift.className = `tl-drift ${cls}`;
+      drift.textContent = delta > 0 ? `+${delta}` : String(delta);
+      right.appendChild(drift);
+    }
+    // Per-run delete (stage 4.4 — preserved).
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
     deleteBtn.className = 'history-delete-btn';
-    deleteBtn.setAttribute('aria-label', `Delete saved comparison: ${item.query || 'Untitled query'}`);
-    deleteBtn.title = 'Delete this comparison';
+    deleteBtn.setAttribute('aria-label', `Delete this run from ${bucket.title}`);
+    deleteBtn.title = 'Delete this run';
     deleteBtn.textContent = '×';
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      removeHistoryEntry(item.id || item.savedAt);
+      removeHistoryEntry(run.id || run.savedAt);
     });
-    overlapWrap.appendChild(deleteBtn);
+    right.appendChild(deleteBtn);
 
-    top.appendChild(titleWrap);
-    top.appendChild(overlapWrap);
-
-    const badges = document.createElement('div');
-    badges.className = 'history-badges';
-    [
-      `${item.googleResultCount} results`,
-      `${item.chatgptDomains.length} ChatGPT sites`,
-      `${item.googleDomains.length} search sites`,
-      `${item.serpFeatures.length} features`,
-      item.browser
-    ].forEach((label) => {
-      const chip = document.createElement('span');
-      chip.className = 'history-badge';
-      chip.textContent = label;
-      badges.appendChild(chip);
-    });
-
-    const drift = document.createElement('div');
-    drift.className = 'history-drift';
-    drift.textContent = item.drift.added || item.drift.removed
-      ? `Drift vs prior ${item.engineLabel || item.engine} capture for this query: +${item.drift.added} / -${item.drift.removed}`
-      : 'No drift detected versus the prior saved capture of this query.';
-
-    const hint = document.createElement('div');
-    hint.className = 'history-drift';
-    hint.textContent = 'Each row is a saved local snapshot of one ChatGPT + search comparison.';
-
-    card.appendChild(top);
-    card.appendChild(badges);
-    card.appendChild(drift);
-    card.appendChild(hint);
-    els.historyWrap.appendChild(card);
+    card.appendChild(left);
+    card.appendChild(right);
+    timeline.appendChild(card);
   });
 }
 
@@ -2371,6 +2493,14 @@ function bindEvents() {
   if (els.historySearchInput) {
     els.historySearchInput.addEventListener('input', (e) => {
       historySearchTerm = String(e.target.value || '');
+      renderHistory();
+    });
+  }
+  const backLink = document.getElementById('historyBackLink');
+  if (backLink) {
+    backLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      selectedConversationKey = null;
       renderHistory();
     });
   }
