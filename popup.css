@@ -1912,3 +1912,53 @@ body.light-mode .overlap-stat {
 body.light-mode .overlap-stat__label { color: #3d4e86 !important; }
 body.light-mode .overlap-stat__value { color: #13255d !important; }
 body.light-mode .metric-label-hint   { color: #3d4e86 !important; }
+
+/* -----------------------------------------------------------------------
+   Combined-tab toolbar (registered-domain matching toggle).
+   ----------------------------------------------------------------------- */
+.combined-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+.inline-toggle {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  cursor: pointer;
+  max-width: 420px;
+}
+.inline-toggle__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.inline-toggle__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text, #e7ecf7);
+}
+.inline-toggle__hint {
+  font-size: 11px;
+  color: var(--muted, #9aa3b2);
+  line-height: 1.45;
+}
+.inline-toggle code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  background: rgba(255,255,255,0.06);
+  padding: 0 3px;
+  border-radius: 3px;
+}
+body.light-mode .inline-toggle {
+  background: rgba(13, 28, 74, 0.04) !important;
+  border-color: rgba(13, 28, 74, 0.15) !important;
+}
+body.light-mode .inline-toggle__label { color: #13255d !important; }
+body.light-mode .inline-toggle__hint  { color: #3d4e86 !important; }
+body.light-mode .inline-toggle code   { background: rgba(13, 28, 74, 0.08) !important; }

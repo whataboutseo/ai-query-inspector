@@ -124,6 +124,11 @@ let activeView = 'chatgpt';
 let comparisonHistory = [];
 let lastSavedFingerprint = '';
 let themeMode = 'dark';
+// Cached snapshot of user preferences, hydrated from chrome.storage in
+// hydrateSettingsUI(). Keeping it in a module-scope variable lets
+// buildCombinedData() (a synchronous function called by every renderer)
+// read the current value without awaiting storage on every invocation.
+let currentSettings = { ...self.AIQIShared.DEFAULT_SETTINGS };
 
 function maybeSetFullPageClass() {
   if (isFullPage) document.body.classList.add('full-page');
@@ -889,8 +894,17 @@ function renderGoogle(data) {
 
 function buildCombinedData() {
   if (!lastChatgptData || !lastGoogleData) return null;
-  const chatSet = new Set(lastChatgptData.uniqueDomains || []);
-  const googleSet = new Set(lastGoogleData.uniqueDomains || []);
+
+  // When matchByRegisteredDomain is on, collapse `en.wikipedia.org` and
+  // `wikipedia.org` to the same key before set operations — otherwise
+  // the overlap score under-counts every multi-subdomain site.
+  const byReg = currentSettings?.matchByRegisteredDomain !== false;
+  const fold = (host) => byReg
+    ? self.AIQIShared.registeredDomain(host || '')
+    : self.AIQIShared.normalizeDomain(host || '');
+
+  const chatSet = new Set((lastChatgptData.uniqueDomains || []).map(fold).filter(Boolean));
+  const googleSet = new Set((lastGoogleData.uniqueDomains || []).map(fold).filter(Boolean));
   const overlap = [...chatSet].filter((domain) => googleSet.has(domain)).sort();
   const chatOnly = [...chatSet].filter((domain) => !googleSet.has(domain)).sort();
   const googleOnly = [...googleSet].filter((domain) => !chatSet.has(domain)).sort();
@@ -913,17 +927,37 @@ function buildCombinedData() {
     : 0;
   const overlapScore = precisionScore;
 
+  // Fold ChatGPT citation counts and Google results by the same key we
+  // used for the set operations. Multiple subdomains under the same
+  // registered domain sum their counts; Google rank folds to the best
+  // (lowest) rank across any subdomain match.
+  const chatCountByFolded = new Map();
+  (lastChatgptData.domainCounts || []).forEach((item) => {
+    const key = fold(item.domain || '');
+    if (!key) return;
+    chatCountByFolded.set(key, (chatCountByFolded.get(key) || 0) + (item.count || 0));
+  });
+  const googleByFolded = new Map();
+  (lastGoogleData.results || []).forEach((item) => {
+    const key = fold(item.domain || '');
+    if (!key) return;
+    const existing = googleByFolded.get(key);
+    if (!existing || (item.rank || 999) < (existing.rank || 999)) {
+      googleByFolded.set(key, item);
+    }
+  });
+
   const rows = [];
   const allDomains = [...new Set([...chatSet, ...googleSet])].sort((a, b) => {
-    const aGoogle = lastGoogleData.results.find((item) => item.domain === a)?.rank || 999;
-    const bGoogle = lastGoogleData.results.find((item) => item.domain === b)?.rank || 999;
-    const aChat = (lastChatgptData.domainCounts.find((item) => item.domain === a) || {}).count || 0;
-    const bChat = (lastChatgptData.domainCounts.find((item) => item.domain === b) || {}).count || 0;
+    const aGoogle = googleByFolded.get(a)?.rank || 999;
+    const bGoogle = googleByFolded.get(b)?.rank || 999;
+    const aChat = chatCountByFolded.get(a) || 0;
+    const bChat = chatCountByFolded.get(b) || 0;
     return aGoogle - bGoogle || bChat - aChat || a.localeCompare(b);
   });
   allDomains.forEach((domain) => {
-    const chatCount = (lastChatgptData.domainCounts.find((item) => item.domain === domain) || {}).count || 0;
-    const googleResult = lastGoogleData.results.find((item) => item.domain === domain);
+    const chatCount = chatCountByFolded.get(domain) || 0;
+    const googleResult = googleByFolded.get(domain);
     rows.push({
       domain,
       inChatgpt: chatSet.has(domain),
@@ -938,7 +972,7 @@ function buildCombinedData() {
   });
 
   const missedOpportunities = googleOnly.map((domain) => {
-    const googleResult = lastGoogleData.results.find((item) => item.domain === domain);
+    const googleResult = googleByFolded.get(domain);
     return {
       domain,
       googleRank: googleResult?.rank || '',
@@ -1637,15 +1671,42 @@ function bindEvents() {
 }
 
 async function hydrateSettingsUI() {
-  const toggle = document.getElementById('autoCaptureToggle');
-  if (!toggle) return;
-  const settings = await self.AIQIShared.getSettings();
-  toggle.checked = !!settings.autoCaptureChatgpt;
-  toggle.addEventListener('change', async () => {
-    await self.AIQIShared.setSettings({ autoCaptureChatgpt: toggle.checked });
-    showToast(toggle.checked
-      ? 'Auto-capture enabled for ChatGPT conversations.'
-      : 'Auto-capture disabled. Click Refresh to capture manually.');
+  currentSettings = await self.AIQIShared.getSettings();
+
+  const autoToggle = document.getElementById('autoCaptureToggle');
+  if (autoToggle) {
+    autoToggle.checked = !!currentSettings.autoCaptureChatgpt;
+    autoToggle.addEventListener('change', async () => {
+      currentSettings = await self.AIQIShared.setSettings({ autoCaptureChatgpt: autoToggle.checked });
+      showToast(autoToggle.checked
+        ? 'Auto-capture enabled for ChatGPT conversations.'
+        : 'Auto-capture disabled. Click Refresh to capture manually.');
+    });
+  }
+
+  const regDomainToggle = document.getElementById('regDomainToggle');
+  if (regDomainToggle) {
+    regDomainToggle.checked = currentSettings.matchByRegisteredDomain !== false;
+    regDomainToggle.addEventListener('change', async () => {
+      currentSettings = await self.AIQIShared.setSettings({ matchByRegisteredDomain: regDomainToggle.checked });
+      // The combined tab's numbers change materially when this toggle
+      // flips, so re-render immediately.
+      renderCombined();
+      showToast(regDomainToggle.checked
+        ? 'Matching by registered domain (subdomains grouped).'
+        : 'Matching by exact hostname (subdomains kept separate).');
+    });
+  }
+
+  // React to settings changes made from another popup instance (e.g.
+  // the full-page dashboard open in another tab flipping the toggle).
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes[self.AIQIShared.SETTINGS_KEY]) return;
+    const newValue = changes[self.AIQIShared.SETTINGS_KEY].newValue || {};
+    currentSettings = { ...self.AIQIShared.DEFAULT_SETTINGS, ...newValue };
+    if (autoToggle) autoToggle.checked = !!currentSettings.autoCaptureChatgpt;
+    if (regDomainToggle) regDomainToggle.checked = currentSettings.matchByRegisteredDomain !== false;
+    renderCombined();
   });
 }
 

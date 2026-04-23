@@ -228,6 +228,19 @@
     </section>
 
     <section id="panelCombined" class="tab-panel hidden combined-layout">
+      <div class="combined-controls">
+        <label class="inline-toggle">
+          <span class="switch">
+            <input type="checkbox" id="regDomainToggle" checked />
+            <span class="switch__slider" aria-hidden="true"></span>
+          </span>
+          <span class="inline-toggle__copy">
+            <span class="inline-toggle__label">Match by registered domain</span>
+            <span class="inline-toggle__hint">Groups <code>en.wikipedia.org</code> with <code>wikipedia.org</code>, etc. Turn off for exact-hostname matching.</span>
+          </span>
+        </label>
+      </div>
+
       <section class="summary-grid combined-grid">
         <article class="card metric-card overlap-card">
           <span class="metric-label">Overlap score <span class="metric-label-hint" title="F1 score — harmonic mean of precision and recall. 100% means ChatGPT's citations and the SERP results are identical sets of domains.">&#9432;</span></span>

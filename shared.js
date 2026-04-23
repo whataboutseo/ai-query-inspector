@@ -28,6 +28,47 @@
     return sanitizeString(domain, 255).toLowerCase().replace(/^www\./, '');
   }
 
+  /**
+   * Pragmatic public-suffix list. A full PSL is ~10k entries and changes
+   * weekly; bundling it is overkill here. Instead we hard-code the
+   * two-label suffixes users actually hit in SEO analysis. Anything not
+   * listed falls back to "last two labels" — which is correct for
+   * .com/.org/.net/.io/.ai/etc.
+   */
+  const TWO_LABEL_PUBLIC_SUFFIXES = new Set([
+    'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'me.uk', 'ltd.uk', 'plc.uk',
+    'co.jp', 'ne.jp', 'or.jp', 'ac.jp', 'go.jp', 'ed.jp', 'gr.jp',
+    'com.au', 'net.au', 'org.au', 'edu.au', 'gov.au', 'id.au',
+    'com.br', 'net.br', 'org.br', 'gov.br', 'edu.br',
+    'co.in', 'net.in', 'org.in', 'gov.in', 'ac.in',
+    'co.nz', 'net.nz', 'org.nz', 'govt.nz', 'ac.nz',
+    'co.za', 'org.za', 'web.za', 'net.za', 'gov.za',
+    'com.sg', 'com.mx', 'com.ar', 'com.tr', 'com.hk', 'com.tw',
+    'com.ph', 'com.my', 'com.co', 'com.ve', 'com.pe', 'com.pk',
+    'com.vn', 'com.eg', 'com.sa', 'com.ng', 'com.kw',
+    'co.id', 'or.id', 'ac.id', 'go.id',
+    'co.kr', 'ne.kr', 'or.kr', 'ac.kr', 'go.kr',
+    'co.il', 'org.il', 'ac.il', 'gov.il',
+    'co.th', 'in.th', 'or.th', 'ac.th', 'go.th',
+  ]);
+
+  /**
+   * Fold a hostname down to its registered (buyable) domain, a.k.a.
+   * eTLD+1. "en.wikipedia.org" -> "wikipedia.org"; "gov.bbc.co.uk" ->
+   * "bbc.co.uk". Returns the input unchanged if it has no dots.
+   */
+  function registeredDomain(host) {
+    const normalized = normalizeDomain(host || '');
+    if (!normalized) return '';
+    const labels = normalized.split('.').filter(Boolean);
+    if (labels.length <= 2) return normalized;
+    const lastTwo = labels.slice(-2).join('.');
+    if (TWO_LABEL_PUBLIC_SUFFIXES.has(lastTwo)) {
+      return labels.slice(-3).join('.');
+    }
+    return lastTwo;
+  }
+
   function extractMessageText(content) {
     if (!content || typeof content !== 'object') return '';
     if (typeof content.text === 'string') return sanitizeString(content.text, 1200);
@@ -503,6 +544,11 @@
   const SETTINGS_KEY = 'aiqiSettings';
   const DEFAULT_SETTINGS = Object.freeze({
     autoCaptureChatgpt: true,
+    // When true, the Combined tab compares ChatGPT citations and SERP
+    // results at the registered-domain (eTLD+1) level — so `en.wiki-
+    // pedia.org` and `wikipedia.org` count as the same site. When
+    // false, exact hostname matching is used.
+    matchByRegisteredDomain: true,
   });
 
   async function getSettings() {
@@ -528,6 +574,7 @@
   const api = Object.freeze({
     sanitizeString,
     normalizeDomain,
+    registeredDomain,
     extractMessageText,
     scanForSourceItems,
     getSearchOrigin,
