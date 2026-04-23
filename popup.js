@@ -2710,6 +2710,12 @@ function bindEvents() {
     const query = lastChatgptData?.latestUserPrompt || lastChatgptData?.queries?.[0]?.q;
     await openGoogleForQuery(query);
   });
+  // Stage 5.9.1: quick Google-capture button inside the hero-stat.
+  const popupHeroCapture = document.getElementById('popupHeroCaptureBtn');
+  if (popupHeroCapture) popupHeroCapture.addEventListener('click', async () => {
+    const query = lastChatgptData?.latestUserPrompt || lastChatgptData?.queries?.[0]?.q;
+    await openGoogleForQuery(query);
+  });
   // Popup section collapse (design-system pop-section pattern).
   document.querySelectorAll('.pop-section[data-pop-collapse] .pop-section-head').forEach((head) => {
     head.addEventListener('click', (e) => {
