@@ -1,0 +1,1831 @@
+const els = {
+  statusText: document.getElementById('statusText'),
+  refreshBtn: document.getElementById('refreshBtn'),
+  openFullPageBtn: document.getElementById('openFullPageBtn'),
+  themeToggleBtn: document.getElementById('themeToggleBtn'),
+  exportAllBtn: document.getElementById('exportAllBtn'),
+  toast: document.getElementById('toast'),
+
+  tabButtons: Array.from(document.querySelectorAll('.tab-btn')),
+  tabPanels: {
+    chatgpt: document.getElementById('panelChatgpt'),
+    google: document.getElementById('panelGoogle'),
+    combined: document.getElementById('panelCombined'),
+    history: document.getElementById('panelHistory')
+  },
+
+  // ChatGPT
+  modelBadge: document.getElementById('modelBadge'),
+  fanoutCount: document.getElementById('fanoutCount'),
+  sourceCount: document.getElementById('sourceCount'),
+  siteCount: document.getElementById('siteCount'),
+  utmCoverage: document.getElementById('utmCoverage'),
+  retrievalIntensityValue: document.getElementById('retrievalIntensityValue'),
+  retrievalIntensityMeta: document.getElementById('retrievalIntensityMeta'),
+  latestPromptText: document.getElementById('latestPromptText'),
+  queryExpansionWrap: document.getElementById('queryExpansionWrap'),
+  citationStrengthWrap: document.getElementById('citationStrengthWrap'),
+  citationStrengthEmpty: document.getElementById('citationStrengthEmpty'),
+  citationStrengthSummary: document.getElementById('citationStrengthSummary'),
+  searchOriginBadge: document.getElementById('searchOriginBadge'),
+  searchOriginConfidence: document.getElementById('searchOriginConfidence'),
+  fanoutsList: document.getElementById('fanoutsList'),
+  fanoutsEmpty: document.getElementById('fanoutsEmpty'),
+  sitesWrap: document.getElementById('sitesWrap'),
+  sitesEmpty: document.getElementById('sitesEmpty'),
+  sitesSummary: document.getElementById('sitesSummary'),
+  turnsWrap: document.getElementById('turnsWrap'),
+  turnsEmpty: document.getElementById('turnsEmpty'),
+  turnsSummary: document.getElementById('turnsSummary'),
+  sourcesWrap: document.getElementById('sourcesWrap'),
+  sourcesEmpty: document.getElementById('sourcesEmpty'),
+  sourcesSummary: document.getElementById('sourcesSummary'),
+  copyQueriesBtn: document.getElementById('copyQueriesBtn'),
+  copySitesBtn: document.getElementById('copySitesBtn'),
+  copySourcesBtn: document.getElementById('copySourcesBtn'),
+  exportChatgptCsvBtn: document.getElementById('exportChatgptCsvBtn'),
+  openGoogleBtn: document.getElementById('openGoogleBtn'),
+
+  // Google
+  googleQueryLabel: document.getElementById('googleQueryLabel'),
+  googleResultCount: document.getElementById('googleResultCount'),
+  googleSiteCount: document.getElementById('googleSiteCount'),
+  googleCaptureMode: document.getElementById('googleCaptureMode'),
+  googleEngineLabel: document.getElementById('googleEngineLabel'),
+  googleFeatureCount: document.getElementById('googleFeatureCount'),
+  googleFeaturesWrap: document.getElementById('googleFeaturesWrap'),
+  googleFeaturesEmpty: document.getElementById('googleFeaturesEmpty'),
+  googleFeaturesSummary: document.getElementById('googleFeaturesSummary'),
+  googleSitesWrap: document.getElementById('googleSitesWrap'),
+  googleSitesEmpty: document.getElementById('googleSitesEmpty'),
+  googleSitesSummary: document.getElementById('googleSitesSummary'),
+  googleResultsWrap: document.getElementById('googleResultsWrap'),
+  googleEmpty: document.getElementById('googleEmpty'),
+  copyGoogleBtn: document.getElementById('copyGoogleBtn'),
+  exportGoogleCsvBtn: document.getElementById('exportGoogleCsvBtn'),
+  openGoogleManualBtn: document.getElementById('openGoogleManualBtn'),
+
+  // Combined
+  combinedOverlapScore: document.getElementById('combinedOverlapScore'),
+  combinedOverlapMeta: document.getElementById('combinedOverlapMeta'),
+  combinedOverlapCount: document.getElementById('combinedOverlapCount'),
+  combinedChatgptOnlyCount: document.getElementById('combinedChatgptOnlyCount'),
+  combinedGoogleOnlyCount: document.getElementById('combinedGoogleOnlyCount'),
+  combinedQueryLabel: document.getElementById('combinedQueryLabel'),
+  combinedWrap: document.getElementById('combinedWrap'),
+  combinedEmpty: document.getElementById('combinedEmpty'),
+  missedOpportunitiesWrap: document.getElementById('missedOpportunitiesWrap'),
+  missedOpportunitiesEmpty: document.getElementById('missedOpportunitiesEmpty'),
+  missedOpportunitiesSummary: document.getElementById('missedOpportunitiesSummary'),
+  copyCombinedBtn: document.getElementById('copyCombinedBtn'),
+  exportCombinedCsvBtn: document.getElementById('exportCombinedCsvBtn'),
+
+  // History
+  historyRunCount: document.getElementById('historyRunCount'),
+  historyQueryCount: document.getElementById('historyQueryCount'),
+  historyEngineCount: document.getElementById('historyEngineCount'),
+  historyLatestOverlap: document.getElementById('historyLatestOverlap'),
+  historySummary: document.getElementById('historySummary'),
+  historyEmpty: document.getElementById('historyEmpty'),
+  historyWrap: document.getElementById('historyWrap'),
+  exportHistoryCsvBtn: document.getElementById('exportHistoryCsvBtn'),
+  clearHistoryBtn: document.getElementById('clearHistoryBtn')
+};
+
+let toastTimer = null;
+const isFullPage = new URLSearchParams(window.location.search).get('full') === '1';
+let lastChatgptData = null;
+let lastGoogleData = null;
+let activeView = 'chatgpt';
+let comparisonHistory = [];
+let lastSavedFingerprint = '';
+let themeMode = 'dark';
+
+function maybeSetFullPageClass() {
+  if (isFullPage) document.body.classList.add('full-page');
+}
+
+function applyTheme(mode = 'dark') {
+  themeMode = mode === 'light' ? 'light' : 'dark';
+  document.body.classList.toggle('light-mode', themeMode === 'light');
+  if (els.themeToggleBtn) els.themeToggleBtn.textContent = themeMode === 'light' ? 'Dark mode' : 'Light mode';
+}
+
+async function toggleThemeMode() {
+  applyTheme(themeMode === 'light' ? 'dark' : 'light');
+  await chrome.storage.local.set({ inspectorThemeMode: themeMode });
+}
+
+function setupCollapsibleSections() {
+  if (!isFullPage) return;
+  document.querySelectorAll('.collapsible-section').forEach((section) => {
+    if (section.dataset.collapsibleReady === '1') return;
+    const head = section.querySelector('.section-head');
+    if (!head) return;
+    const actions = head.querySelector('.section-actions') || head;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ghost-btn collapse-toggle';
+    btn.textContent = 'Collapse';
+    btn.addEventListener('click', () => {
+      const collapsed = section.classList.toggle('collapsed');
+      btn.textContent = collapsed ? 'Expand' : 'Collapse';
+    });
+    actions.appendChild(btn);
+    section.dataset.collapsibleReady = '1';
+  });
+}
+
+async function getActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab || null;
+}
+
+function isChatgptUrl(url = '') {
+  return /^https:\/\/(chatgpt\.com|chat\.openai\.com)\//.test(url);
+}
+
+function isSearchUrl(url = '') {
+  return /^https:\/\/((([a-z0-9-]+\.)*google\.)|(([a-z0-9-]+\.)*bing\.com)|duckduckgo\.com)/i.test(url);
+}
+
+function isInspectableUrl(url = '') {
+  return isChatgptUrl(url) || isSearchUrl(url);
+}
+
+async function getInspectionTargetTab() {
+  const params = new URLSearchParams(window.location.search);
+  const sourceTabId = Number(params.get('sourceTabId') || 0);
+  if (sourceTabId) {
+    try {
+      const tab = await chrome.tabs.get(sourceTabId);
+      if (tab?.id && tab.url && isInspectableUrl(tab.url)) return tab;
+    } catch {}
+  }
+
+  const active = await getActiveTab();
+  if (active?.id && active.url && isInspectableUrl(active.url)) return active;
+
+  const tabs = await chrome.tabs.query({ currentWindow: true }).catch(() => []);
+  const candidates = (tabs || []).filter((tab) => tab?.id && tab.url && isInspectableUrl(tab.url));
+  if (candidates.length) {
+    candidates.sort((a, b) => {
+      const aScore = (a.active ? 100 : 0) + (a.lastAccessed || 0);
+      const bScore = (b.active ? 100 : 0) + (b.lastAccessed || 0);
+      return bScore - aScore;
+    });
+    return candidates[0];
+  }
+
+  const broader = await chrome.tabs.query({}).catch(() => []);
+  const broaderCandidates = (broader || []).filter((tab) => tab?.id && tab.url && isInspectableUrl(tab.url));
+  broaderCandidates.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+  return broaderCandidates[0] || active || null;
+}
+
+function setStatus(message, kind = 'warn') {
+  els.statusText.textContent = message;
+  els.statusText.className = kind === 'ok' ? 'status-ok' : kind === 'error' ? 'status-error' : 'status-warn';
+}
+
+function showToast(message) {
+  els.toast.textContent = message;
+  els.toast.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => els.toast.classList.add('hidden'), 1400);
+}
+
+function sanitizeString(value, maxLen = 500) {
+  if (typeof value !== 'string') return '';
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  return normalized.slice(0, maxLen);
+}
+
+function normalizeDomain(domain) {
+  const cleaned = sanitizeString(domain, 255).toLowerCase();
+  return cleaned.replace(/^www\./, '');
+}
+
+function slugify(value, fallback = 'export') {
+  const clean = sanitizeString(value, 80).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return clean || fallback;
+}
+
+function titleCaseEngine(engine) {
+  const map = { google: 'Google', bing: 'Bing', duckduckgo: 'DuckDuckGo' };
+  return map[engine] || 'Unknown';
+}
+
+function getBrowserLabel() {
+  const ua = navigator.userAgent || '';
+  if (/Edg\//.test(ua)) return 'Edge';
+  if (/Chrome\//.test(ua)) return 'Chrome';
+  if (/Firefox\//.test(ua)) return 'Firefox';
+  if (/Safari\//.test(ua) && !/Chrome\//.test(ua)) return 'Safari';
+  return 'Browser';
+}
+
+function normalizeFeatureList(features) {
+  if (!Array.isArray(features)) return [];
+  return [...new Set(features.map((v) => sanitizeString(v, 120)).filter(Boolean))].slice(0, 20);
+}
+
+function csvEscape(value) {
+  const str = String(value ?? '');
+  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+}
+
+function downloadFile(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function openFullPageDashboard(focus = true, sourceTabId = 0, initialView = '') {
+  const params = new URLSearchParams({ full: '1' });
+  if (sourceTabId) params.set('sourceTabId', String(sourceTabId));
+  if (initialView) params.set('view', initialView);
+  const targetUrl = chrome.runtime.getURL(`popup.html?${params.toString()}`);
+  const existing = await chrome.tabs.query({ url: [chrome.runtime.getURL('popup.html*')] }).catch(() => []);
+  if (existing && existing.length) {
+    await chrome.tabs.update(existing[0].id, { url: targetUrl, active: !!focus });
+    return existing[0];
+  }
+  return chrome.tabs.create({ url: targetUrl, active: !!focus });
+}
+
+function rowsToDelimited(rows, delimiter='\t') {
+  return rows.map((row) => row.map((cell) => {
+    const str = String(cell ?? '');
+    if (delimiter === '\t') return str.replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
+    return csvEscape(str);
+  }).join(delimiter)).join('\n');
+}
+
+function buildFullExportSections() {
+  const combined = buildCombinedData();
+  const sections = [];
+  const summaryRows = [['section','metric','value']];
+  summaryRows.push(['ChatGPT','Model', lastChatgptData?.model || '']);
+  summaryRows.push(['ChatGPT','Prompt', lastChatgptData?.latestUserPrompt || '']);
+  summaryRows.push(['ChatGPT','Search origin', lastChatgptData?.searchOrigin?.label || '']);
+  summaryRows.push(['ChatGPT','Search confidence', lastChatgptData?.searchOrigin?.confidence || '']);
+  summaryRows.push(['ChatGPT','Fan-outs', lastChatgptData?.queries?.length || 0]);
+  summaryRows.push(['ChatGPT','Cited sources', lastChatgptData?.citedSources || 0]);
+  summaryRows.push(['ChatGPT','Unique sites', lastChatgptData?.uniqueDomains?.length || 0]);
+  summaryRows.push(['ChatGPT','UTM coverage', `${lastChatgptData?.utmCount || 0} / ${lastChatgptData?.totalUrls || 0}`]);
+  summaryRows.push(['Google','Query', lastGoogleData?.query || '']);
+  summaryRows.push(['Google','Engine', lastGoogleData?.engineLabel || '']);
+  summaryRows.push(['Google','Organic results', lastGoogleData?.resultCount || 0]);
+  summaryRows.push(['Google','Unique sites', lastGoogleData?.uniqueDomains?.length || 0]);
+  summaryRows.push(['Google','SERP features', (lastGoogleData?.serpFeatures || []).join('; ')]);
+  summaryRows.push(['Combined','Overlap score', combined ? `${combined.overlapScore}%` : '']);
+  summaryRows.push(['Combined','Overlap sites', combined?.overlap?.length || 0]);
+  summaryRows.push(['Combined','ChatGPT-only sites', combined?.chatOnly?.length || 0]);
+  summaryRows.push(['Combined','Google-only sites', combined?.googleOnly?.length || 0]);
+  summaryRows.push(['History','Saved runs', comparisonHistory?.length || 0]);
+  sections.push({name:'summary', rows: summaryRows});
+
+  sections.push({name:'chatgpt_fanouts', rows: [['index','query','domains'], ...((lastChatgptData?.queries||[]).map((q,i)=>[i+1,q.q,(q.domains||[]).join('; ')]))]});
+  sections.push({name:'chatgpt_sites', rows: [['domain','citation_count'], ...((lastChatgptData?.domainCounts||[]).map((d)=>[d.domain,d.count]))]});
+  sections.push({name:'chatgpt_sources', rows: [['domain','title','url','status','mentions','cited_mentions'], ...((lastChatgptData?.sources||[]).map((s)=>[s.domain||'', s.title||'', s.url||'', s.statusLabel||'', s.count||0, s.citedCount||0]))]});
+  sections.push({name:'google_features', rows: [['feature'], ...((lastGoogleData?.serpFeatures||[]).map((f)=>[f]))]});
+  sections.push({name:'google_sites', rows: [['domain'], ...((lastGoogleData?.uniqueDomains||[]).map((d)=>[d]))]});
+  sections.push({name:'google_results', rows: [['rank','domain','title','url','snippet'], ...((lastGoogleData?.results||[]).map((r)=>[r.rank,r.domain,r.title,r.url,r.snippet]))]});
+  sections.push({name:'combined_rows', rows: [['domain','chatgpt_citations','google_rank','google_title','google_url','google_snippet','overlap_label'], ...((combined?.rows||[]).map((r)=>[r.domain,r.chatgptCitations,r.googleRank,r.googleTitle,r.googleUrl,r.googleSnippet,r.overlapLabel]))]});
+  sections.push({name:'combined_missed_opportunities', rows: [['domain','google_rank','google_title'], ...((combined?.missedOpportunities||[]).map((r)=>[r.domain,r.googleRank,r.googleTitle]))]});
+  sections.push({name:'history', rows: [['saved_at','query','prompt','engine','model','browser','overlap_score','drift_added','drift_removed'], ...((comparisonHistory||[]).map((h)=>[h.savedAt||'',h.query||'',h.prompt||'',h.engineLabel||h.engine||'',h.model||'',h.browser||'',`${h.overlapScore||0}%`,h.drift?.added||0,h.drift?.removed||0]))]});
+  return sections;
+}
+
+
+
+function exportFullDataset() {
+  const combined = buildCombinedData();
+  const baseName = slugify(lastChatgptData?.latestUserPrompt || lastGoogleData?.query || 'inspector-export', 'inspector-export');
+  const turns = Array.isArray(lastChatgptData?.conversationTurns) ? lastChatgptData.conversationTurns : [];
+
+  const chatRows = [
+    ['record_type','turn_index','turn_prompt','field','value','domain','title','url','status','count','extra']
+  ];
+
+  chatRows.push(['summary','','','model', lastChatgptData?.model || '','','','','','','']);
+  chatRows.push(['summary','','','latest_prompt', lastChatgptData?.latestUserPrompt || '','','','','','','']);
+  chatRows.push(['summary','','','search_origin', lastChatgptData?.searchOrigin?.label || '','','','','','','']);
+  chatRows.push(['summary','','','search_confidence', lastChatgptData?.searchOrigin?.confidence || '','','','','','','']);
+  chatRows.push(['summary','','','fanouts', String(lastChatgptData?.queries?.length || 0),'','','','','','']);
+  chatRows.push(['summary','','','cited_sources', String(lastChatgptData?.citedSources || 0),'','','','','','']);
+  chatRows.push(['summary','','','unique_sites', String(lastChatgptData?.uniqueDomains?.length || 0),'','','','','','']);
+  chatRows.push(['summary','','','utm_coverage', `${lastChatgptData?.utmCount || 0} / ${lastChatgptData?.totalUrls || 0}`,'','','','','','']);
+  chatRows.push(['summary','','','turn_count', String(turns.length),'','','','','','']);
+
+  (lastChatgptData?.queries || []).forEach((q, i) => {
+    chatRows.push(['latest_turn_query','', lastChatgptData?.latestUserPrompt || '', `query_${i + 1}`, q.q || '', '', '', '', '', '', (q.domains || []).join('; ')]);
+  });
+
+  (lastChatgptData?.domainCounts || []).forEach((d) => {
+    chatRows.push(['latest_turn_site','', lastChatgptData?.latestUserPrompt || '', 'site', '', d.domain || '', '', '', '', String(d.count || 0), '']);
+  });
+
+  (lastChatgptData?.sources || []).forEach((s) => {
+    chatRows.push(['latest_turn_source','', lastChatgptData?.latestUserPrompt || '', 'source', '', s.domain || '', s.title || '', s.url || '', s.statusLabel || '', String(s.count || 0), `cited_mentions=${s.citedCount || 0}`]);
+  });
+
+  turns.forEach((t) => {
+    chatRows.push(['turn_summary', String(t.index || ''), t.prompt || '', 'turn', '', '', '', '', '', '', `queries=${t.queryCount || 0}; cited_sources=${t.citedSourceCount || 0}; unique_sites=${t.uniqueSiteCount || 0}; unique_sources=${t.uniqueSourceCount || 0}`]);
+
+    (t.queries || []).forEach((q, i) => {
+      chatRows.push(['turn_query', String(t.index || ''), t.prompt || '', `query_${i + 1}`, q.q || '', '', '', '', '', '', (q.domains || []).join('; ')]);
+    });
+
+    (t.sources || []).forEach((s) => {
+      chatRows.push(['turn_source', String(t.index || ''), t.prompt || '', 'source', '', s.domain || '', s.title || '', s.url || '', s.statusLabel || '', String(s.count || 0), `cited_mentions=${s.citedCount || 0}`]);
+    });
+  });
+
+  const googleRows = [
+    ['record_type','field','value','domain','title','url','rank','snippet','extra']
+  ];
+  googleRows.push(['summary','query', lastGoogleData?.query || '','','','','','','']);
+  googleRows.push(['summary','engine', lastGoogleData?.engineLabel || '','','','','','','']);
+  googleRows.push(['summary','capture_mode', lastGoogleData?.captureMode || '','','','','','','']);
+  googleRows.push(['summary','organic_results', String(lastGoogleData?.resultCount || 0),'','','','','','']);
+  googleRows.push(['summary','unique_sites', String(lastGoogleData?.uniqueDomains?.length || 0),'','','','','','']);
+  googleRows.push(['summary','serp_features', (lastGoogleData?.serpFeatures || []).join('; '),'','','','','','']);
+  (lastGoogleData?.results || []).forEach((r) => {
+    googleRows.push(['result','','', r.domain || '', r.title || '', r.url || '', String(r.rank || ''), r.snippet || '', '']);
+  });
+
+  const combinedRows = [
+    ['record_type','field','value','domain','title','url','rank','count','status','extra']
+  ];
+  combinedRows.push(['summary','compared_query', combined?.query || '','','','','','','']);
+  combinedRows.push(['summary','overlap_score', combined ? `${combined.overlapScore}%` : '','','','','','','']);
+  combinedRows.push(['summary','overlap_sites', String(combined?.overlap?.length || 0),'','','','','','']);
+  combinedRows.push(['summary','chatgpt_only_sites', String(combined?.chatOnly?.length || 0),'','','','','','']);
+  combinedRows.push(['summary','google_only_sites', String(combined?.googleOnly?.length || 0),'','','','','','']);
+  (combined?.rows || []).forEach((r) => {
+    combinedRows.push(['comparison','','', r.domain || '', r.googleTitle || '', r.googleUrl || '', String(r.googleRank || ''), String(r.chatgptCitations || 0), r.overlapLabel || '', r.googleSnippet || '']);
+  });
+  (combined?.missedOpportunities || []).forEach((r) => {
+    combinedRows.push(['missed','','', r.domain || '', r.googleTitle || '', r.googleUrl || '', String(r.googleRank || ''), '', 'Missed by ChatGPT', '']);
+  });
+  (comparisonHistory || []).forEach((h) => {
+    combinedRows.push(['history', 'saved_at', h.savedAt || '', '', '', '', '', '', '', `${h.query || ''} | ${h.prompt || ''} | ${h.engineLabel || h.engine || ''} | ${h.model || ''} | ${h.overlapScore || 0}% | +${h.drift?.added || 0}/-${h.drift?.removed || 0}`]);
+  });
+
+  downloadFile(`${baseName}-chatgpt.csv`, rowsToDelimited(chatRows, ','), 'text/csv;charset=utf-8');
+  setTimeout(() => downloadFile(`${baseName}-google.csv`, rowsToDelimited(googleRows, ','), 'text/csv;charset=utf-8'), 120);
+  setTimeout(() => downloadFile(`${baseName}-combined.csv`, rowsToDelimited(combinedRows, ','), 'text/csv;charset=utf-8'), 240);
+  showToast('CSV exports saved');
+}
+
+
+
+async function saveLocalState() {
+  await chrome.storage.local.set({
+    chatgptInspectorData: lastChatgptData,
+    googleInspectorData: lastGoogleData,
+    inspectorActiveView: activeView,
+    comparisonHistory,
+    lastHistoryFingerprint: lastSavedFingerprint,
+    inspectorThemeMode: themeMode
+  });
+}
+
+async function loadLocalState() {
+  const state = await chrome.storage.local.get(['chatgptInspectorData', 'googleInspectorData', 'inspectorActiveView', 'pendingGoogleQuery', 'pendingChatgptSnapshot', 'comparisonHistory', 'lastHistoryFingerprint', 'inspectorThemeMode']);
+  lastChatgptData = state.chatgptInspectorData || state.pendingChatgptSnapshot || null;
+  lastGoogleData = state.googleInspectorData || null;
+  comparisonHistory = Array.isArray(state.comparisonHistory) ? state.comparisonHistory : [];
+  lastSavedFingerprint = state.lastHistoryFingerprint || '';
+  activeView = state.inspectorActiveView || 'chatgpt';
+  applyTheme(state.inspectorThemeMode || 'dark');
+  return state.pendingGoogleQuery || '';
+}
+
+function switchTab(tabName) {
+  activeView = tabName;
+  els.tabButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabName));
+  Object.entries(els.tabPanels).forEach(([name, panel]) => panel.classList.toggle('hidden', name !== tabName));
+  saveLocalState().catch(() => {});
+}
+
+
+function extractMessageText(content) {
+  if (!content || typeof content !== 'object') return '';
+  if (typeof content.text === 'string') return sanitizeString(content.text, 1200);
+  if (Array.isArray(content.parts)) {
+    const joined = content.parts
+      .map((part) => {
+        if (typeof part === 'string') return part;
+        if (part && typeof part === 'object' && typeof part.text === 'string') return part.text;
+        return '';
+      })
+      .filter(Boolean)
+      .join(' ');
+    return sanitizeString(joined, 1200);
+  }
+  return '';
+}
+
+function renderQueryExpansion(data) {
+  const prompt = data?.latestUserPrompt || 'No prompt detected yet.';
+  els.latestPromptText.textContent = prompt;
+  els.queryExpansionWrap.innerHTML = '';
+
+  const queries = data?.queries || [];
+  if (!queries.length) {
+    els.queryExpansionWrap.textContent = 'No fan-out queries found in this conversation payload.';
+    els.queryExpansionWrap.className = 'expansion-tree empty-state';
+    return;
+  }
+
+  els.queryExpansionWrap.className = 'expansion-tree';
+  const root = document.createElement('div');
+  root.className = 'expansion-root';
+
+  const node = document.createElement('div');
+  node.className = 'expansion-node';
+
+  const promptLabel = document.createElement('div');
+  promptLabel.className = 'expansion-node-label';
+  promptLabel.textContent = 'Prompt';
+
+  const promptBox = document.createElement('div');
+  promptBox.className = 'expansion-root-title';
+  promptBox.textContent = prompt;
+
+  const fanoutLabel = document.createElement('div');
+  fanoutLabel.className = 'expansion-node-label';
+  fanoutLabel.textContent = 'Fan-out queries';
+
+  const list = document.createElement('div');
+  list.className = 'expansion-query-list';
+  queries.forEach((item, index) => {
+    const row = document.createElement('div');
+    row.className = 'expansion-query-item';
+    row.textContent = `${index + 1}. ${item.q}`;
+    list.appendChild(row);
+  });
+
+  node.appendChild(promptLabel);
+  node.appendChild(promptBox);
+  node.appendChild(fanoutLabel);
+  node.appendChild(list);
+  root.appendChild(node);
+  els.queryExpansionWrap.appendChild(root);
+}
+
+function renderCitationStrength(data) {
+  const domainCounts = data?.domainCounts || [];
+  els.citationStrengthWrap.innerHTML = '';
+  els.citationStrengthEmpty.classList.toggle('hidden', domainCounts.length > 0);
+  els.citationStrengthWrap.classList.toggle('hidden', domainCounts.length === 0);
+  els.citationStrengthSummary.classList.toggle('hidden', domainCounts.length === 0);
+  if (!domainCounts.length) {
+    els.citationStrengthSummary.textContent = '';
+    return;
+  }
+  const maxCount = Math.max(...domainCounts.map((item) => item.count), 1);
+  els.citationStrengthSummary.textContent = `${data.citedSources} total citations across ${data.uniqueDomains.length} sites`;
+  domainCounts.forEach(({ domain, count }) => {
+    const row = document.createElement('div');
+    row.className = 'strength-row';
+
+    const top = document.createElement('div');
+    top.className = 'strength-top';
+
+    const name = document.createElement('div');
+    name.className = 'strength-domain';
+    name.textContent = domain;
+
+    const pill = document.createElement('span');
+    pill.className = 'site-count';
+    pill.textContent = `${count} ${count === 1 ? 'citation' : 'citations'}`;
+
+    const track = document.createElement('div');
+    track.className = 'strength-bar-track';
+    const fill = document.createElement('div');
+    fill.className = 'strength-bar-fill';
+    fill.style.width = `${Math.max(8, Math.round((count / maxCount) * 100))}%`;
+    track.appendChild(fill);
+
+    top.appendChild(name);
+    top.appendChild(pill);
+    row.appendChild(top);
+    row.appendChild(track);
+    els.citationStrengthWrap.appendChild(row);
+  });
+}
+
+function scanForSourceItems(value, acc = []) {
+  if (!value || typeof value !== 'object') return acc;
+  if (Array.isArray(value)) {
+    value.forEach((item) => scanForSourceItems(item, acc));
+    return acc;
+  }
+  const url = typeof value.url === 'string' ? sanitizeString(value.url, 1500) : '';
+  const title = sanitizeString(value.title || value.display_text || value.name || value.citation_text || value.text || '', 300);
+  if (url && /^https?:\/\//i.test(url)) {
+    let domain = '';
+    try { domain = normalizeDomain(new URL(url).hostname); } catch {}
+    acc.push({ url, title, domain });
+  }
+  Object.values(value).forEach((child) => {
+    if (child && typeof child === 'object') scanForSourceItems(child, acc);
+  });
+  return acc;
+}
+
+function getSearchOrigin(explicitQueries, citedSources, utmCount, uniqueDomainCount) {
+  if (explicitQueries > 0) return { label: 'Search detected', confidence: 'High', tone: 'search' };
+  if (citedSources > 0 || utmCount > 0 || uniqueDomainCount >= 2) return { label: 'Search likely', confidence: 'Medium', tone: 'likely' };
+  if (uniqueDomainCount === 1) return { label: 'Unclear / mixed', confidence: 'Low', tone: 'unclear' };
+  return { label: 'Likely from training', confidence: 'Medium', tone: 'training' };
+}
+
+
+function sortConversationPath(raw) {
+  const mapping = raw?.mapping || {};
+  const currentNodeId = raw?.current_node;
+  const path = [];
+  const seen = new Set();
+  let nodeId = currentNodeId;
+  while (nodeId && mapping[nodeId] && !seen.has(nodeId)) {
+    seen.add(nodeId);
+    path.push(mapping[nodeId]);
+    nodeId = mapping[nodeId]?.parent || null;
+  }
+  if (path.length) return path.reverse();
+  return Object.values(mapping).sort((a, b) => {
+    const ta = a?.message?.create_time || 0;
+    const tb = b?.message?.create_time || 0;
+    return ta - tb;
+  });
+}
+
+function aggregateSourceItems(items = []) {
+  const sourceMap = new Map();
+  items.forEach((item) => {
+    if (!item?.url) return;
+    const key = item.url;
+    const existing = sourceMap.get(key) || { url: item.url, title: item.title || '', domain: item.domain || '', count: 0, citedCount: 0 };
+    existing.count += 1;
+    if (item.cited) existing.citedCount += 1;
+    if (!existing.title && item.title) existing.title = item.title;
+    if (!existing.domain && item.domain) existing.domain = item.domain;
+    sourceMap.set(key, existing);
+  });
+  return [...sourceMap.values()].map((item) => {
+    const statusLabel = item.citedCount > 0 ? (item.citedCount < item.count ? 'Cited + considered' : 'Cited source') : 'Considered source';
+    return { ...item, statusLabel };
+  }).sort((a,b)=>b.citedCount-a.citedCount || b.count-a.count || (a.domain||'').localeCompare(b.domain||''));
+}
+
+function buildConversationTurns(raw) {
+  const orderedNodes = sortConversationPath(raw);
+  const turns = [];
+  let currentTurn = null;
+
+  const parseQueriesFromText = (text) => {
+    const found = [];
+    if (!text) return found;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && Array.isArray(parsed.search_query)) {
+        parsed.search_query.forEach((sq) => {
+          if (!sq || typeof sq !== 'object') return;
+          const q = sanitizeString(sq.q, 500);
+          if (!q) return;
+          found.push({ q, domains: Array.isArray(sq.domains) ? sq.domains.map(normalizeDomain).filter(Boolean).slice(0,20) : [] });
+        });
+      }
+    } catch {
+      const match = text.match(/search\("([^"]+)"\)/);
+      if (match) found.push({ q: sanitizeString(match[1], 500), domains: [] });
+    }
+    return found;
+  };
+
+  orderedNodes.forEach((node) => {
+    const message = node?.message;
+    if (!message || typeof message !== 'object') return;
+    const content = message.content || {};
+    const role = message.author?.role;
+    if (role === 'user') {
+      const prompt = extractMessageText(content);
+      if (prompt) {
+        currentTurn = { index: turns.length + 1, prompt, queries: [], sourceItems: [], citedSourceCount: 0, uniqueSiteCount: 0, uniqueSourceCount: 0, queryCount: 0, sources: [] };
+        turns.push(currentTurn);
+      }
+      return;
+    }
+    if (role !== 'assistant' || !currentTurn) return;
+
+    const text = typeof content.text === 'string' ? content.text : '';
+    parseQueriesFromText(text).forEach((q) => currentTurn.queries.push(q));
+
+    const localItems = [];
+    scanForSourceItems(message.metadata || {}, localItems);
+    scanForSourceItems(message.content || {}, localItems);
+    const refs = message.metadata?.content_references;
+    if (Array.isArray(refs)) {
+      refs.forEach((ref) => {
+        if (!Array.isArray(ref?.items)) return;
+        ref.items.forEach((item) => {
+          if (!item || typeof item.url !== 'string') return;
+          const url = sanitizeString(item.url, 1500);
+          let domain = '';
+          try { domain = normalizeDomain(new URL(url).hostname); } catch {}
+          localItems.push({ url, title: sanitizeString(item.title || item.display_text || item.name || item.citation_text || '', 300), domain, cited: true });
+        });
+      });
+    }
+    currentTurn.sourceItems.push(...localItems);
+  });
+
+  return turns.map((turn) => {
+    const uniqueQuery = new Map();
+    (turn.queries || []).forEach((q) => {
+      const key = `${q.q}||${(q.domains || []).join(',')}`;
+      if (!uniqueQuery.has(key)) uniqueQuery.set(key, q);
+    });
+    const sources = aggregateSourceItems(turn.sourceItems || []);
+    const uniqueSites = [...new Set(sources.map((s) => s.domain).filter(Boolean))];
+    const citedSourceCount = sources.reduce((sum, s) => sum + (s.citedCount || 0), 0);
+    return {
+      index: turn.index,
+      prompt: turn.prompt,
+      queries: [...uniqueQuery.values()].slice(0, 20),
+      queryCount: uniqueQuery.size,
+      sources: sources.slice(0, 20),
+      citedSourceCount,
+      uniqueSiteCount: uniqueSites.length,
+      uniqueSourceCount: sources.length
+    };
+  });
+}
+
+function parseChatgptPayload(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Payload format may have changed: root payload is invalid.');
+  if (!raw.mapping || typeof raw.mapping !== 'object' || Array.isArray(raw.mapping)) throw new Error('Payload format may have changed: missing conversation mapping.');
+
+  const queries = [];
+  const domains = [];
+  let citedSources = 0;
+  let totalUrls = 0;
+  let utmCount = 0;
+  let hiddenLikely = true;
+  let inspectedNodes = 0;
+  let latestUserPrompt = '';
+  const sourceItems = [];
+  const citedUrlCounts = new Map();
+
+  const tryAddQuery = (queryText, domainList = []) => {
+    const q = sanitizeString(queryText, 500);
+    if (!q) return;
+    const normalizedDomains = Array.isArray(domainList) ? domainList.map(normalizeDomain).filter(Boolean).slice(0, 20) : [];
+    queries.push({ q, domains: normalizedDomains });
+  };
+
+  for (const node of Object.values(raw.mapping)) {
+    if (!node || typeof node !== 'object') continue;
+    inspectedNodes += 1;
+    if (inspectedNodes > 5000) break;
+    const message = node.message;
+    if (!message || typeof message !== 'object') continue;
+    const content = message.content;
+    const text = content && typeof content.text === 'string' ? content.text : '';
+
+    if (message.author?.role === 'user') {
+      const candidatePrompt = extractMessageText(content);
+      if (candidatePrompt) latestUserPrompt = candidatePrompt;
+    }
+
+    if (content?.content_type === 'code' && text) {
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && Array.isArray(parsed.search_query)) {
+          hiddenLikely = false;
+          parsed.search_query.slice(0, 100).forEach((sq) => { if (sq && typeof sq === 'object') tryAddQuery(sq.q, sq.domains || []); });
+        }
+      } catch {
+        const matchSearch = text.match(/search\("([^"]+)"\)/);
+        if (matchSearch) {
+          hiddenLikely = false;
+          tryAddQuery(matchSearch[1], []);
+        }
+      }
+    }
+
+    if (message.author?.role === 'assistant') {
+      scanForSourceItems(message.metadata || {}, sourceItems);
+      scanForSourceItems(message.content || {}, sourceItems);
+    }
+
+    const refs = message.metadata?.content_references;
+    if (!Array.isArray(refs)) continue;
+    refs.slice(0, 500).forEach((ref) => {
+      if (!Array.isArray(ref?.items)) return;
+      ref.items.slice(0, 500).forEach((item) => {
+        if (!item || typeof item !== 'object' || typeof item.url !== 'string') return;
+        const cleanUrl = sanitizeString(item.url, 1500);
+        totalUrls += 1;
+        citedSources += 1;
+        citedUrlCounts.set(cleanUrl, (citedUrlCounts.get(cleanUrl) || 0) + 1);
+        sourceItems.push({
+          url: cleanUrl,
+          title: sanitizeString(item.title || item.display_text || item.name || item.citation_text || '', 300),
+          domain: '',
+          cited: true
+        });
+        if (cleanUrl.includes('utm_source=chatgpt')) utmCount += 1;
+        try {
+          const parsedUrl = new URL(cleanUrl);
+          const domain = normalizeDomain(parsedUrl.hostname);
+          if (domain) domains.push(domain);
+        } catch {}
+      });
+    });
+  }
+
+  const uniqueQueryKeys = new Set();
+  const dedupedQueries = queries.filter((item) => {
+    const key = `${item.q}||${item.domains.join(',')}`;
+    if (uniqueQueryKeys.has(key)) return false;
+    uniqueQueryKeys.add(key);
+    return true;
+  }).slice(0, 250);
+
+  const uniqueDomains = [...new Set(domains)].sort((a, b) => a.localeCompare(b));
+  const domainCountMap = {};
+  domains.forEach((domain) => { domainCountMap[domain] = (domainCountMap[domain] || 0) + 1; });
+  const domainCounts = Object.entries(domainCountMap).map(([domain, count]) => ({ domain, count })).sort((a, b) => b.count - a.count || a.domain.localeCompare(b.domain)).slice(0, 250);
+  const conversationTurns = buildConversationTurns(raw);
+  const sourceMap = new Map();
+  sourceItems.forEach((item) => {
+    if (!item.url) return;
+    const key = item.url;
+    const existing = sourceMap.get(key) || { url: item.url, title: item.title || '', domain: item.domain || '', count: 0, citedCount: 0 };
+    existing.count += 1;
+    if (!existing.title && item.title) existing.title = item.title;
+    if (!existing.domain && item.domain) existing.domain = item.domain;
+    existing.citedCount = citedUrlCounts.get(key) || existing.citedCount || 0;
+    sourceMap.set(key, existing);
+  });
+  const sources = [...sourceMap.values()].map((item) => {
+    let domain = item.domain || '';
+    if (!domain && item.url) {
+      try { domain = normalizeDomain(new URL(item.url).hostname); } catch {}
+    }
+    const cited = (item.citedCount || 0) > 0;
+    return {
+      ...item,
+      domain,
+      status: cited ? 'cited' : 'considered',
+      statusLabel: cited ? 'Cited source' : 'Considered source'
+    };
+  }).sort((a,b)=> (b.citedCount||0)-(a.citedCount||0) || b.count-a.count || a.domain.localeCompare(b.domain) || a.url.localeCompare(b.url)).slice(0,500);
+  const model = sanitizeString(raw.default_model_slug || '', 120) || null;
+  const turnList = Array.isArray(conversationTurns) ? conversationTurns : [];
+  const latestTurn = turnList.length ? turnList[turnList.length - 1] : null;
+
+  const summaryQueries = latestTurn?.queries?.length ? latestTurn.queries : dedupedQueries;
+  const summarySources = latestTurn?.sources?.length ? latestTurn.sources : sources;
+  const summaryDomains = latestTurn?.uniqueSiteCount
+    ? [...new Set(summarySources.map((s) => s.domain).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+    : uniqueDomains;
+  const summaryDomainMap = {};
+  summarySources.forEach((item) => {
+    const domain = item?.domain || '';
+    if (!domain) return;
+    summaryDomainMap[domain] = (summaryDomainMap[domain] || 0) + (item.citedCount || item.count || 1);
+  });
+  const summaryDomainCounts = latestTurn?.uniqueSiteCount
+    ? Object.entries(summaryDomainMap).map(([domain, count]) => ({ domain, count })).sort((a, b) => b.count - a.count || a.domain.localeCompare(b.domain))
+    : domainCounts;
+  const summaryCitedSources = latestTurn ? (latestTurn.citedSourceCount || 0) : citedSources;
+  const searchOrigin = getSearchOrigin(summaryQueries.length, summaryCitedSources || summarySources.length, utmCount, summaryDomains.length);
+
+  return {
+    model,
+    queries: summaryQueries,
+    citedSources: summaryCitedSources,
+    totalUrls,
+    utmCount,
+    uniqueDomains: summaryDomains,
+    domainCounts: summaryDomainCounts,
+    sources: summarySources,
+    hiddenLikely,
+    searchOrigin,
+    latestUserPrompt: latestTurn?.prompt || latestUserPrompt || '',
+    conversationTurns: turnList,
+    searchSignals: {
+      explicitQueries: summaryQueries.length,
+      contentRefs: summaryCitedSources,
+      utmRefs: utmCount,
+      externalDomains: summaryDomains.length
+    }
+  };
+}
+
+function renderChatgpt(data) {
+  els.modelBadge.textContent = data?.model || 'Unknown';
+  els.modelBadge.classList.toggle('muted', !data?.model);
+  els.fanoutCount.textContent = String(data?.queries?.length || 0);
+  els.sourceCount.textContent = String(data?.citedSources || 0);
+  els.siteCount.textContent = String(data?.uniqueDomains?.length || 0);
+  els.utmCoverage.textContent = `${data?.utmCount || 0} / ${data?.totalUrls || 0}`;
+  els.retrievalIntensityValue.textContent = `${data?.queries?.length || 0} / ${data?.citedSources || 0} / ${data?.uniqueDomains?.length || 0}`;
+  els.retrievalIntensityMeta.textContent = 'Fan-outs / citations / sites';
+
+  const origin = data?.searchOrigin || { label: 'Unknown', confidence: '', tone: 'muted' };
+  els.searchOriginBadge.textContent = origin.label;
+  els.searchOriginBadge.className = `origin-badge ${origin.tone || 'muted'}`;
+  els.searchOriginConfidence.textContent = origin.confidence ? `${origin.confidence} confidence` : '';
+  els.searchOriginConfidence.classList.toggle('hidden', !origin.confidence);
+
+  els.fanoutsList.innerHTML = '';
+  const queries = data?.queries || [];
+  els.fanoutsEmpty.classList.toggle('hidden', queries.length > 0);
+  els.fanoutsList.classList.toggle('hidden', queries.length === 0);
+  queries.forEach((item) => {
+    const li = document.createElement('li');
+    li.className = 'query-item';
+    const query = document.createElement('p');
+    query.className = 'query-text';
+    query.textContent = item.q;
+    li.appendChild(query);
+    if (item.domains.length) {
+      const domainTags = document.createElement('div');
+      domainTags.className = 'domain-tags';
+      item.domains.forEach((domain) => {
+        const tag = document.createElement('span');
+        tag.className = 'domain-tag';
+        tag.textContent = domain;
+        domainTags.appendChild(tag);
+      });
+      li.appendChild(domainTags);
+    }
+    els.fanoutsList.appendChild(li);
+  });
+
+  renderQueryExpansion(data);
+  renderCitationStrength(data);
+
+  els.sitesWrap.innerHTML = '';
+  const domainCounts = data?.domainCounts || [];
+  els.sitesEmpty.classList.toggle('hidden', domainCounts.length > 0);
+  els.sitesWrap.classList.toggle('hidden', domainCounts.length === 0);
+  els.sitesSummary.classList.toggle('hidden', domainCounts.length === 0);
+  els.sitesSummary.textContent = domainCounts.length ? `${data.citedSources} total citations across ${data.uniqueDomains.length} sites` : '';
+
+  domainCounts.forEach(({ domain, count }) => {
+    const row = document.createElement('div');
+    row.className = 'site-row';
+    const name = document.createElement('div');
+    name.className = 'site-name';
+    name.textContent = domain;
+    const meta = document.createElement('div');
+    meta.className = 'site-meta';
+    const countPill = document.createElement('span');
+    countPill.className = 'site-count';
+    countPill.textContent = `${count} ${count === 1 ? 'hit' : 'hits'}`;
+    meta.appendChild(countPill);
+    row.appendChild(name);
+    row.appendChild(meta);
+    els.sitesWrap.appendChild(row);
+  });
+
+  renderConversationTurns(data);
+  renderSources(data);
+}
+
+
+function renderConversationTurns(data) {
+  const turns = data?.conversationTurns || [];
+  if (!els.turnsWrap) return;
+  els.turnsWrap.innerHTML = '';
+  els.turnsEmpty.classList.toggle('hidden', turns.length > 0);
+  els.turnsWrap.classList.toggle('hidden', turns.length === 0);
+  els.turnsSummary.classList.toggle('hidden', turns.length === 0);
+  els.turnsSummary.textContent = turns.length ? `${turns.length} prompt turn${turns.length === 1 ? '' : 's'} detected` : '';
+  turns.forEach((turn) => {
+    const details = document.createElement('details');
+    details.className = 'turn-card';
+    details.open = !isFullPage && turn.index === turns.length;
+    const summary = document.createElement('summary');
+    summary.className = 'turn-summary';
+    const left = document.createElement('div');
+    const title = document.createElement('div');
+    title.className = 'turn-title';
+    title.textContent = `Prompt ${turn.index}: ${turn.prompt}`;
+    left.appendChild(title);
+
+    const meta = document.createElement('div');
+    meta.className = 'turn-meta';
+    [
+      `${turn.queryCount || 0} fan-outs`,
+      `${turn.citedSourceCount || 0} cited sources`,
+      `${turn.uniqueSourceCount || 0} sources`,
+      `${turn.uniqueSiteCount || 0} sites`
+    ].forEach((text) => {
+      const pill = document.createElement('span');
+      pill.className = 'turn-pill';
+      pill.textContent = text;
+      meta.appendChild(pill);
+    });
+    left.appendChild(meta);
+
+    const right = document.createElement('span');
+    right.className = 'turn-pill';
+    right.textContent = details.open ? 'Expanded' : 'Collapsed';
+    details.addEventListener('toggle', () => { right.textContent = details.open ? 'Expanded' : 'Collapsed'; });
+    summary.appendChild(left);
+    summary.appendChild(right);
+    details.appendChild(summary);
+
+    const body = document.createElement('div');
+    body.className = 'turn-body';
+
+    const queries = document.createElement('div');
+    queries.className = 'turn-subgrid';
+    queries.innerHTML = `<div class="expansion-label">Queries for this turn</div>`;
+    const qList = document.createElement('div');
+    qList.className = 'turn-list';
+    (turn.queries || []).forEach((q) => {
+      const row = document.createElement('div');
+      row.className = 'turn-list-item';
+      row.textContent = q.domains?.length ? `${q.q} [${q.domains.join(', ')}]` : q.q;
+      qList.appendChild(row);
+    });
+    if (!turn.queries?.length) {
+      const row = document.createElement('div');
+      row.className = 'turn-list-item';
+      row.textContent = 'No explicit fan-out queries captured for this turn.';
+      qList.appendChild(row);
+    }
+    queries.appendChild(qList);
+
+    const sources = document.createElement('div');
+    sources.className = 'turn-subgrid';
+    sources.innerHTML = `<div class="expansion-label">Sources for this turn</div>`;
+    const sList = document.createElement('div');
+    sList.className = 'turn-list';
+    (turn.sources || []).slice(0, 8).forEach((s) => {
+      const row = document.createElement('div');
+      row.className = 'turn-list-item';
+      row.textContent = `${s.statusLabel || 'Source'} · ${s.domain || 'source'}${s.title ? ' · ' + s.title : ''}`;
+      sList.appendChild(row);
+    });
+    if (!turn.sources?.length) {
+      const row = document.createElement('div');
+      row.className = 'turn-list-item';
+      row.textContent = 'No source objects captured for this turn.';
+      sList.appendChild(row);
+    }
+    sources.appendChild(sList);
+
+    body.appendChild(queries);
+    body.appendChild(sources);
+    details.appendChild(body);
+    els.turnsWrap.appendChild(details);
+  });
+}
+
+function renderSources(data) {
+  const sources = data?.sources || [];
+  els.sourcesWrap.innerHTML = '';
+  els.sourcesEmpty.classList.toggle('hidden', sources.length > 0);
+  els.sourcesWrap.classList.toggle('hidden', sources.length === 0);
+  els.sourcesSummary.classList.toggle('hidden', sources.length === 0);
+  els.sourcesSummary.textContent = sources.length ? `${sources.length} unique source links captured` : '';
+
+  sources.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'result-row';
+    const top = document.createElement('div');
+    top.className = 'result-top';
+    const domain = document.createElement('span');
+    domain.className = 'domain-tag';
+    domain.textContent = item.domain || 'source';
+    const count = document.createElement('span');
+    count.className = 'site-count';
+    count.textContent = `${item.count} ${item.count === 1 ? 'mention' : 'mentions'}`;
+    const status = document.createElement('span');
+    status.className = `source-status ${item.status === 'considered' ? 'considered' : 'cited'}`;
+    status.textContent = item.statusLabel || (item.status === 'considered' ? 'Considered source' : 'Cited source');
+    top.appendChild(domain);
+    top.appendChild(status);
+    top.appendChild(count);
+
+    const title = document.createElement('div');
+    title.className = 'result-title';
+    title.textContent = item.title || item.url;
+
+    const url = document.createElement('div');
+    url.className = 'result-url';
+    url.textContent = item.url;
+
+    row.appendChild(top);
+    row.appendChild(title);
+    row.appendChild(url);
+    els.sourcesWrap.appendChild(row);
+  });
+}
+
+function parseGooglePayload(raw, fallbackQuery = '') {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Search payload is invalid.');
+  const results = Array.isArray(raw.results) ? raw.results : [];
+  const cleanedResults = results.map((item) => ({
+    rank: Number(item.rank) || 0,
+    title: sanitizeString(item.title, 300),
+    url: sanitizeString(item.url, 1000),
+    domain: normalizeDomain(item.domain || ''),
+    snippet: sanitizeString(item.snippet, 500)
+  })).filter((item) => item.rank > 0 && item.title && item.url && item.domain).slice(0, 20);
+
+  const uniqueDomains = [...new Set(cleanedResults.map((item) => item.domain))];
+  const engine = sanitizeString(raw.engine || '', 80).toLowerCase() || 'google';
+  const serpFeatures = normalizeFeatureList(raw.serpFeatures || []);
+  return {
+    engine,
+    engineLabel: titleCaseEngine(engine),
+    query: sanitizeString(raw.query || fallbackQuery || '', 300),
+    captureMode: `Local ${titleCaseEngine(engine)} page`,
+    resultCount: cleanedResults.length,
+    uniqueDomains,
+    serpFeatures,
+    results: cleanedResults,
+    capturedAt: new Date().toISOString()
+  };
+}
+
+function renderGoogle(data) {
+  els.googleQueryLabel.textContent = data?.query || 'None';
+  els.googleResultCount.textContent = String(data?.resultCount || 0);
+  els.googleSiteCount.textContent = String(data?.uniqueDomains?.length || 0);
+  els.googleCaptureMode.textContent = data?.captureMode || 'Local page';
+  els.googleEngineLabel.textContent = data?.engineLabel || 'Unknown';
+  els.googleFeatureCount.textContent = String(data?.serpFeatures?.length || 0);
+
+  const domainCounts = (data?.results || []).reduce((acc, item) => {
+    acc[item.domain] = (acc[item.domain] || 0) + 1;
+    return acc;
+  }, {});
+  const siteRows = Object.entries(domainCounts)
+    .map(([domain, count]) => ({ domain, count }))
+    .sort((a, b) => b.count - a.count || a.domain.localeCompare(b.domain));
+  els.googleSitesWrap.innerHTML = '';
+  els.googleSitesEmpty.classList.toggle('hidden', siteRows.length > 0);
+  els.googleSitesWrap.classList.toggle('hidden', siteRows.length === 0);
+  els.googleSitesSummary.classList.toggle('hidden', siteRows.length === 0);
+  els.googleSitesSummary.textContent = siteRows.length ? `${data?.resultCount || 0} results across ${data?.uniqueDomains?.length || 0} sites` : '';
+  siteRows.forEach(({ domain, count }) => {
+    const row = document.createElement('div');
+    row.className = 'site-row';
+    const name = document.createElement('div');
+    name.className = 'site-name';
+    name.textContent = domain;
+    const meta = document.createElement('div');
+    meta.className = 'site-meta';
+    const countPill = document.createElement('span');
+    countPill.className = 'site-count';
+    countPill.textContent = `${count} ${count === 1 ? 'result' : 'results'}`;
+    meta.appendChild(countPill);
+    row.appendChild(name);
+    row.appendChild(meta);
+    els.googleSitesWrap.appendChild(row);
+  });
+
+  els.googleFeaturesWrap.innerHTML = '';
+  const features = data?.serpFeatures || [];
+  els.googleFeaturesEmpty.classList.toggle('hidden', features.length > 0);
+  els.googleFeaturesWrap.classList.toggle('hidden', features.length === 0);
+  els.googleFeaturesSummary.classList.toggle('hidden', features.length === 0);
+  els.googleFeaturesSummary.textContent = features.length ? `${features.length} detected on this ${data?.engineLabel || 'SERP'}` : '';
+  features.forEach((feature) => {
+    const chip = document.createElement('span');
+    chip.className = 'feature-chip';
+    chip.textContent = feature;
+    els.googleFeaturesWrap.appendChild(chip);
+  });
+
+  els.googleResultsWrap.innerHTML = '';
+  const results = data?.results || [];
+  els.googleEmpty.classList.toggle('hidden', results.length > 0);
+  els.googleResultsWrap.classList.toggle('hidden', results.length === 0);
+
+  results.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'result-row';
+
+    const top = document.createElement('div');
+    top.className = 'result-top';
+    const rank = document.createElement('span');
+    rank.className = 'result-rank';
+    rank.textContent = `#${item.rank}`;
+    const domain = document.createElement('span');
+    domain.className = 'domain-tag';
+    domain.textContent = item.domain;
+    top.appendChild(rank);
+    top.appendChild(domain);
+
+    const title = document.createElement('div');
+    title.className = 'result-title';
+    title.textContent = item.title;
+
+    const snippet = document.createElement('div');
+    snippet.className = 'result-snippet';
+    snippet.textContent = item.snippet || item.url;
+
+    const resultUrl = document.createElement('div');
+    resultUrl.className = 'result-url';
+    resultUrl.textContent = item.url;
+
+    row.appendChild(top);
+    row.appendChild(title);
+    row.appendChild(snippet);
+    row.appendChild(resultUrl);
+    els.googleResultsWrap.appendChild(row);
+  });
+}
+
+function buildCombinedData() {
+  if (!lastChatgptData || !lastGoogleData) return null;
+  const chatSet = new Set(lastChatgptData.uniqueDomains || []);
+  const googleSet = new Set(lastGoogleData.uniqueDomains || []);
+  const overlap = [...chatSet].filter((domain) => googleSet.has(domain)).sort();
+  const chatOnly = [...chatSet].filter((domain) => !googleSet.has(domain)).sort();
+  const googleOnly = [...googleSet].filter((domain) => !chatSet.has(domain)).sort();
+  const overlapScore = chatSet.size ? Math.round((overlap.length / chatSet.size) * 100) : 0;
+
+  const rows = [];
+  const allDomains = [...new Set([...chatSet, ...googleSet])].sort((a, b) => {
+    const aGoogle = lastGoogleData.results.find((item) => item.domain === a)?.rank || 999;
+    const bGoogle = lastGoogleData.results.find((item) => item.domain === b)?.rank || 999;
+    const aChat = (lastChatgptData.domainCounts.find((item) => item.domain === a) || {}).count || 0;
+    const bChat = (lastChatgptData.domainCounts.find((item) => item.domain === b) || {}).count || 0;
+    return aGoogle - bGoogle || bChat - aChat || a.localeCompare(b);
+  });
+  allDomains.forEach((domain) => {
+    const chatCount = (lastChatgptData.domainCounts.find((item) => item.domain === domain) || {}).count || 0;
+    const googleResult = lastGoogleData.results.find((item) => item.domain === domain);
+    rows.push({
+      domain,
+      inChatgpt: chatSet.has(domain),
+      chatgptCitations: chatCount,
+      inGoogle: googleSet.has(domain),
+      googleRank: googleResult?.rank || '',
+      googleTitle: googleResult?.title || '',
+      googleUrl: googleResult?.url || '',
+      googleSnippet: googleResult?.snippet || '',
+      overlapLabel: chatSet.has(domain) && googleSet.has(domain) ? 'Shared' : chatSet.has(domain) ? 'ChatGPT only' : 'Google only'
+    });
+  });
+
+  const missedOpportunities = googleOnly.map((domain) => {
+    const googleResult = lastGoogleData.results.find((item) => item.domain === domain);
+    return {
+      domain,
+      googleRank: googleResult?.rank || '',
+      googleTitle: googleResult?.title || '',
+      googleUrl: googleResult?.url || ''
+    };
+  }).sort((a, b) => (a.googleRank || 999) - (b.googleRank || 999) || a.domain.localeCompare(b.domain));
+
+  return {
+    query: lastGoogleData.query || lastChatgptData.latestUserPrompt || lastChatgptData.queries?.[0]?.q || '',
+    overlap,
+    chatOnly,
+    googleOnly,
+    overlapScore,
+    overlapMeta: `${overlap.length} of ${chatSet.size} ChatGPT sites appear in ${lastGoogleData.engineLabel || 'search'} results`,
+    engine: lastGoogleData.engine || 'google',
+    engineLabel: lastGoogleData.engineLabel || 'Google',
+    serpFeatures: lastGoogleData.serpFeatures || [],
+    missedOpportunities,
+    rows
+  };
+}
+
+function makeHistoryFingerprint(data) {
+  return [lastChatgptData?.conversationId || '', lastChatgptData?.capturedAt || '', lastGoogleData?.capturedAt || '', data.query || '', data.engine || ''].join('||');
+}
+
+function persistHistorySnapshot() {
+  const data = buildCombinedData();
+  if (!data) return;
+  const fingerprint = makeHistoryFingerprint(data);
+  if (!fingerprint || fingerprint === lastSavedFingerprint) return;
+
+  const prior = comparisonHistory.find((item) => item.query === data.query && item.engine === data.engine);
+  const currentGoogle = new Set(data.rows.filter((r) => r.inGoogle).map((r) => r.domain));
+  const priorGoogle = new Set((prior?.googleDomains || []));
+  const addedDomains = [...currentGoogle].filter((d) => !priorGoogle.has(d)).sort();
+  const removedDomains = [...priorGoogle].filter((d) => !currentGoogle.has(d)).sort();
+
+  const entry = {
+    id: fingerprint,
+    savedAt: new Date().toISOString(),
+    query: data.query,
+    prompt: lastChatgptData?.latestUserPrompt || '',
+    engine: data.engine,
+    engineLabel: data.engineLabel,
+    model: lastChatgptData?.model || '',
+    browser: getBrowserLabel(),
+    overlapScore: data.overlapScore,
+    overlapCount: data.overlap.length,
+    chatgptOnlyCount: data.chatOnly.length,
+    googleOnlyCount: data.googleOnly.length,
+    fanoutCount: lastChatgptData?.queries?.length || 0,
+    citedSources: lastChatgptData?.citedSources || 0,
+    chatgptDomains: lastChatgptData?.uniqueDomains || [],
+    googleDomains: lastGoogleData?.uniqueDomains || [],
+    serpFeatures: lastGoogleData?.serpFeatures || [],
+    googleResultCount: lastGoogleData?.resultCount || 0,
+    drift: { added: addedDomains.length, removed: removedDomains.length, addedDomains, removedDomains },
+    pageContext: {
+      chatgptPageUrl: lastChatgptData?.pageUrl || '',
+      searchPageUrl: lastGoogleData?.pageUrl || '',
+      chatgptCapturedAt: lastChatgptData?.capturedAt || '',
+      searchCapturedAt: lastGoogleData?.capturedAt || ''
+    }
+  };
+
+  comparisonHistory = [entry, ...comparisonHistory.filter((item) => item.id !== entry.id)].slice(0, 100);
+  lastSavedFingerprint = fingerprint;
+  saveLocalState().catch(() => {});
+}
+
+function renderHistory() {
+  const history = comparisonHistory || [];
+  els.historyRunCount.textContent = String(history.length);
+  els.historyQueryCount.textContent = String(new Set(history.map((h) => h.query).filter(Boolean)).size);
+  els.historyEngineCount.textContent = String(new Set(history.map((h) => h.engineLabel || h.engine).filter(Boolean)).size);
+  els.historyLatestOverlap.textContent = history.length ? `${history[0].overlapScore}%` : '0%';
+  els.historyWrap.innerHTML = '';
+  els.historyEmpty.classList.toggle('hidden', history.length > 0);
+  els.historyWrap.classList.toggle('hidden', history.length === 0);
+  els.historySummary.classList.toggle('hidden', history.length === 0);
+  els.historySummary.textContent = history.length ? `${history.length} saved local comparison${history.length === 1 ? '' : 's'}` : '';
+
+  history.forEach((item) => {
+    const card = document.createElement('div');
+    card.className = 'result-row history-card';
+
+    const top = document.createElement('div');
+    top.className = 'history-top';
+    const titleWrap = document.createElement('div');
+    const title = document.createElement('div');
+    title.className = 'history-title';
+    title.textContent = item.query || 'Untitled query';
+    const meta = document.createElement('div');
+    meta.className = 'history-meta';
+    meta.textContent = `${item.engineLabel || item.engine || 'Search'} • ${item.model || 'Unknown model'} • ${new Date(item.savedAt).toLocaleString()}`;
+    titleWrap.appendChild(title);
+    titleWrap.appendChild(meta);
+
+    const overlap = document.createElement('span');
+    overlap.className = 'site-count';
+    overlap.textContent = `${item.overlapScore}% overlap`;
+    top.appendChild(titleWrap);
+    top.appendChild(overlap);
+
+    const badges = document.createElement('div');
+    badges.className = 'history-badges';
+    [
+      `${item.googleResultCount} results`,
+      `${item.chatgptDomains.length} ChatGPT sites`,
+      `${item.googleDomains.length} search sites`,
+      `${item.serpFeatures.length} features`,
+      item.browser
+    ].forEach((label) => {
+      const chip = document.createElement('span');
+      chip.className = 'history-badge';
+      chip.textContent = label;
+      badges.appendChild(chip);
+    });
+
+    const drift = document.createElement('div');
+    drift.className = 'history-drift';
+    drift.textContent = item.drift.added || item.drift.removed
+      ? `Drift vs prior ${item.engineLabel || item.engine} capture for this query: +${item.drift.added} / -${item.drift.removed}`
+      : 'No drift detected versus the prior saved capture of this query.';
+
+    const hint = document.createElement('div');
+    hint.className = 'history-drift';
+    hint.textContent = 'Each row is a saved local snapshot of one ChatGPT + search comparison.';
+
+    card.appendChild(top);
+    card.appendChild(badges);
+    card.appendChild(drift);
+    card.appendChild(hint);
+    els.historyWrap.appendChild(card);
+  });
+}
+
+function renderCombined() {
+  const data = buildCombinedData();
+  els.combinedWrap.innerHTML = '';
+  els.missedOpportunitiesWrap.innerHTML = '';
+  if (!data) {
+    els.combinedOverlapScore.textContent = '0%';
+    els.combinedOverlapMeta.textContent = '0 of 0 ChatGPT sites appear in search results';
+    els.combinedOverlapCount.textContent = '0';
+    els.combinedChatgptOnlyCount.textContent = '0';
+    els.combinedGoogleOnlyCount.textContent = '0';
+    els.combinedQueryLabel.textContent = 'None';
+    els.combinedEmpty.classList.remove('hidden');
+    els.combinedWrap.classList.add('hidden');
+    els.missedOpportunitiesEmpty.classList.remove('hidden');
+    els.missedOpportunitiesWrap.classList.add('hidden');
+    els.missedOpportunitiesSummary.classList.add('hidden');
+    return;
+  }
+
+  els.combinedOverlapScore.textContent = `${data.overlapScore}%`;
+  els.combinedOverlapMeta.textContent = data.overlapMeta;
+  els.combinedOverlapCount.textContent = String(data.overlap.length);
+  els.combinedChatgptOnlyCount.textContent = String(data.chatOnly.length);
+  els.combinedGoogleOnlyCount.textContent = String(data.googleOnly.length);
+  els.combinedQueryLabel.textContent = data.query || 'None';
+  els.combinedEmpty.classList.add('hidden');
+  els.combinedWrap.classList.remove('hidden');
+
+  const table = document.createElement('div');
+  table.className = 'comparison-table';
+  const header = document.createElement('div');
+  header.className = 'comparison-row comparison-header';
+  ['Domain', 'ChatGPT', 'Google', 'Title', 'Overlap'].forEach((label) => {
+    const cell = document.createElement('div');
+    cell.className = 'comparison-cell';
+    cell.textContent = label;
+    header.appendChild(cell);
+  });
+  table.appendChild(header);
+
+  data.rows.forEach((rowData) => {
+    const row = document.createElement('div');
+    row.className = 'comparison-row';
+
+    const domain = document.createElement('div');
+    domain.className = 'comparison-cell domain-cell';
+    domain.textContent = rowData.domain;
+
+    const chat = document.createElement('div');
+    chat.className = 'comparison-cell';
+    chat.textContent = rowData.inChatgpt ? `${rowData.chatgptCitations} citation${rowData.chatgptCitations === 1 ? '' : 's'}` : '—';
+
+    const google = document.createElement('div');
+    google.className = 'comparison-cell';
+    google.textContent = rowData.inGoogle ? `#${rowData.googleRank}` : '—';
+
+    const title = document.createElement('div');
+    title.className = 'comparison-cell title-cell';
+    title.textContent = rowData.googleTitle || '—';
+
+    const overlap = document.createElement('div');
+    overlap.className = 'comparison-cell';
+    const tag = document.createElement('span');
+    tag.className = `overlap-tag ${rowData.inChatgpt && rowData.inGoogle ? 'shared' : rowData.inChatgpt ? 'chatgpt-only' : 'google-only'}`;
+    tag.textContent = rowData.overlapLabel;
+    overlap.appendChild(tag);
+
+    [domain, chat, google, title, overlap].forEach((cell) => row.appendChild(cell));
+    table.appendChild(row);
+  });
+
+  els.combinedWrap.appendChild(table);
+
+  const missed = data.missedOpportunities || [];
+  els.missedOpportunitiesEmpty.classList.toggle('hidden', missed.length > 0);
+  els.missedOpportunitiesWrap.classList.toggle('hidden', missed.length === 0);
+  els.missedOpportunitiesSummary.classList.toggle('hidden', missed.length === 0);
+  els.missedOpportunitiesSummary.textContent = missed.length ? `${missed.length} Google-ranked domains not cited by ChatGPT` : '';
+
+  missed.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'result-row';
+    const top = document.createElement('div');
+    top.className = 'result-top';
+    const rank = document.createElement('span');
+    rank.className = 'result-rank';
+    rank.textContent = item.googleRank ? `#${item.googleRank}` : '—';
+    const domain = document.createElement('span');
+    domain.className = 'domain-tag';
+    domain.textContent = item.domain;
+    top.appendChild(rank);
+    top.appendChild(domain);
+
+    const title = document.createElement('div');
+    title.className = 'result-title';
+    title.textContent = item.googleTitle || 'Untitled result';
+
+    row.appendChild(top);
+    row.appendChild(title);
+    els.missedOpportunitiesWrap.appendChild(row);
+  });
+  persistHistorySnapshot();
+  renderHistory();
+}
+
+async function copyText(text, successLabel) {
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus(successLabel, 'ok');
+    showToast('Copied');
+  } catch (error) {
+    setStatus(`Copy failed: ${error.message}`, 'error');
+  }
+}
+
+function exportChatgptCsv() {
+  if (!lastChatgptData) return setStatus('Nothing to export yet.', 'error');
+  const rows = [[
+    'conversation_id','page_url','browser','captured_at','model','prompt','search_origin','search_confidence','fanout_index','fanout_query','fanout_domains','cited_domain','cited_count','source_domain','source_title','source_url','source_status','source_mentions','source_cited_mentions','total_cited_sources','utm_count','total_urls'
+  ]];
+  const maxLength = Math.max(lastChatgptData.queries.length, lastChatgptData.domainCounts.length, lastChatgptData.sources.length, 1);
+  for (let i = 0; i < maxLength; i += 1) {
+    const query = lastChatgptData.queries[i];
+    const domain = lastChatgptData.domainCounts[i];
+    const source = lastChatgptData.sources[i];
+    rows.push([
+      lastChatgptData.conversationId || '',
+      lastChatgptData.pageUrl || '',
+      lastChatgptData.browser || getBrowserLabel(),
+      lastChatgptData.capturedAt || '',
+      lastChatgptData.model || '',
+      lastChatgptData.latestUserPrompt || '',
+      lastChatgptData.searchOrigin?.label || '',
+      lastChatgptData.searchOrigin?.confidence || '',
+      query ? i + 1 : '',
+      query?.q || '',
+      query?.domains?.join('; ') || '',
+      domain?.domain || '',
+      domain?.count ?? '',
+      source?.domain || '',
+      source?.title || '',
+      source?.url || '',
+      source?.statusLabel || '',
+      source?.count ?? '',
+      source?.citedCount ?? '',
+      lastChatgptData.citedSources,
+      lastChatgptData.utmCount,
+      lastChatgptData.totalUrls
+    ]);
+  }
+  downloadFile(`chatgpt-inspector-${lastChatgptData.conversationId || 'conversation'}.csv`, rows.map((r) => r.map(csvEscape).join(',')).join('\n'), 'text/csv;charset=utf-8');
+  showToast('ChatGPT CSV exported');
+}
+
+function exportGoogleCsv() {
+  if (!lastGoogleData) return setStatus('Nothing to export yet.', 'error');
+  const chatMap = Object.fromEntries((lastChatgptData?.domainCounts || []).map((item) => [item.domain, item.count]));
+  const rows = [['query', 'page_url', 'browser', 'engine', 'capture_mode', 'serp_features', 'rank', 'domain', 'title', 'url', 'snippet', 'cited_by_chatgpt', 'chatgpt_citation_count', 'captured_at']];
+  lastGoogleData.results.forEach((item) => rows.push([
+    lastGoogleData.query,
+    lastGoogleData.pageUrl || '',
+    lastGoogleData.browser || getBrowserLabel(),
+    lastGoogleData.engineLabel || lastGoogleData.engine || '',
+    lastGoogleData.captureMode,
+    (lastGoogleData.serpFeatures || []).join('; '),
+    item.rank,
+    item.domain,
+    item.title,
+    item.url,
+    item.snippet,
+    chatMap[item.domain] ? 'yes' : 'no',
+    chatMap[item.domain] || 0,
+    lastGoogleData.capturedAt || ''
+  ]));
+  downloadFile(`serp-snapshot-${slugify(lastGoogleData.query, 'search')}.csv`, rows.map((r) => r.map(csvEscape).join(',')).join('\n'), 'text/csv;charset=utf-8');
+  showToast('SERP snapshot exported');
+}
+
+function exportCombinedCsv() {
+  const data = buildCombinedData();
+  if (!data) return setStatus('Capture both ChatGPT and Google data first.', 'error');
+  const rows = [['query', 'engine', 'serp_features', 'domain', 'in_chatgpt', 'chatgpt_citations', 'in_google', 'google_rank', 'google_title', 'google_url', 'google_snippet', 'overlap_label', 'overlap_score', 'captured_at']];
+  data.rows.forEach((item) => rows.push([
+    data.query,
+    data.engineLabel,
+    data.serpFeatures.join('; '),
+    item.domain,
+    item.inChatgpt ? 'yes' : 'no',
+    item.chatgptCitations,
+    item.inGoogle ? 'yes' : 'no',
+    item.googleRank,
+    item.googleTitle,
+    item.googleUrl,
+    item.googleSnippet,
+    item.overlapLabel,
+    `${data.overlapScore}%`,
+    lastGoogleData?.capturedAt || ''
+  ]));
+  downloadFile(`combined-local-comparison-${slugify(data.query, 'comparison')}.csv`, rows.map((r) => r.map(csvEscape).join(',')).join('\n'), 'text/csv;charset=utf-8');
+  showToast('Combined dataset exported');
+}
+
+function exportHistoryCsv() {
+  if (!comparisonHistory.length) return setStatus('No history to export yet.', 'error');
+  const rows = [['saved_at', 'query', 'prompt', 'engine', 'model', 'browser', 'overlap_score', 'overlap_sites', 'chatgpt_only_sites', 'google_only_sites', 'fanouts', 'cited_sources', 'google_results', 'serp_features', 'chatgpt_page_url', 'search_page_url', 'chatgpt_captured_at', 'search_captured_at', 'drift_added', 'drift_removed', 'drift_added_domains', 'drift_removed_domains']];
+  comparisonHistory.forEach((item) => rows.push([
+    item.savedAt || '',
+    item.query || '',
+    item.prompt || '',
+    item.engineLabel || item.engine || '',
+    item.model || '',
+    item.browser || '',
+    `${item.overlapScore ?? 0}%`,
+    item.overlapCount ?? 0,
+    item.chatgptOnlyCount ?? 0,
+    item.googleOnlyCount ?? 0,
+    item.fanoutCount ?? 0,
+    item.citedSources ?? 0,
+    item.googleResultCount ?? 0,
+    (item.serpFeatures || []).join('; '),
+    item.pageContext?.chatgptPageUrl || '',
+    item.pageContext?.searchPageUrl || '',
+    item.pageContext?.chatgptCapturedAt || '',
+    item.pageContext?.searchCapturedAt || '',
+    item.drift?.added ?? 0,
+    item.drift?.removed ?? 0,
+    (item.drift?.addedDomains || []).join('; '),
+    (item.drift?.removedDomains || []).join('; ')
+  ]));
+  downloadFile(`comparison-history-${new Date().toISOString().slice(0, 10)}.csv`, rows.map((r) => r.map(csvEscape).join(',')).join('\n'), 'text/csv;charset=utf-8');
+  showToast('History CSV exported');
+}
+
+async function fetchConversationPayloadInPage() {
+  const localSanitizeString = (value, maxLen = 500) => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, maxLen) : '';
+  try {
+    const pathname = window.location.pathname;
+    const match = pathname.match(/\/c\/([^/]+)/);
+    if (!match) return { error: 'This page does not appear to be a ChatGPT conversation URL.' };
+    const conversationId = localSanitizeString(match[1], 200);
+    const sessionResp = await fetch('/api/auth/session', { credentials: 'include' });
+    if (!sessionResp.ok) return { error: `Session request failed: ${sessionResp.status}` };
+    const sessionJson = await sessionResp.json();
+    const accessToken = typeof sessionJson?.accessToken === 'string' ? sessionJson.accessToken : '';
+    if (!accessToken) return { error: 'No access token found in session response.' };
+    const convResp = await fetch(`/backend-api/conversation/${conversationId}`, { credentials: 'include', headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!convResp.ok) return { error: `Conversation request failed: ${convResp.status}` };
+    const payload = await convResp.json();
+    return { conversationId, payload, pageUrl: window.location.href };
+  } catch (error) {
+    return { error: `Page fetch failed: ${error?.message || 'Unknown error'}` };
+  }
+}
+
+async function fetchSearchResultsInPage() {
+  const clean = (value, maxLen = 500) => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, maxLen) : '';
+  const norm = (host) => clean(host || '', 255).toLowerCase().replace(/^www\./, '');
+  try {
+    const url = new URL(window.location.href);
+    const host = norm(url.hostname);
+    const bodyText = clean(document.body?.innerText || '', 24000).toLowerCase();
+    const featureSet = new Set();
+    const seen = new Set();
+    let engine = '';
+    let query = '';
+    const candidates = [];
+
+    const pushCandidate = (title, href, domain, snippet) => {
+      const safeTitle = clean(title, 300);
+      const safeHref = clean(href, 1200);
+      const safeDomain = norm(domain);
+      const safeSnippet = clean(snippet, 420);
+      if (!safeTitle || !safeHref || !safeDomain) return;
+      const key = `${safeDomain}||${safeTitle}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      candidates.push({ title: safeTitle, url: safeHref, domain: safeDomain, snippet: safeSnippet });
+    };
+
+    if (/(^|\.)google\./i.test(host) && url.pathname.startsWith('/search')) {
+      engine = 'google';
+      query = clean(document.querySelector('textarea[name="q"], input[name="q"]')?.value || url.searchParams.get('q') || '', 300);
+      document.querySelectorAll('a h3').forEach((h3) => {
+        const anchor = h3.closest('a');
+        if (!anchor) return;
+        const href = anchor.href || '';
+        if (!href.startsWith('http')) return;
+        let parsed;
+        try { parsed = new URL(href); } catch { return; }
+        const domain = norm(parsed.hostname);
+        if (!domain || /google\./i.test(domain)) return;
+        const container = anchor.closest('div[data-ved]') || anchor.parentElement || anchor;
+        const snippet = clean((container?.innerText || '').replace(h3.textContent || '', ''), 420);
+        pushCandidate(h3.textContent || '', href, domain, snippet);
+      });
+      if (/ai overview|overview from ai/.test(bodyText) || document.querySelector('[data-attrid="title"]')) featureSet.add('AI Overview');
+      if (/featured snippet/.test(bodyText) || document.querySelector('.hgKElc, .xpdopen .DKV0Md')) featureSet.add('Featured Snippet');
+      if (/top stories/.test(bodyText)) featureSet.add('Top Stories');
+      if (/shopping/.test(bodyText)) featureSet.add('Shopping');
+      if (/videos/.test(bodyText) || document.querySelector('a[href*="youtube.com"]')) featureSet.add('Videos');
+    } else if (/(^|\.)bing\.com$/i.test(host)) {
+      engine = 'bing';
+      query = clean(document.querySelector('textarea[name="q"], input[name="q"], #sb_form_q')?.value || url.searchParams.get('q') || '', 300);
+      document.querySelectorAll('li.b_algo h2 a').forEach((anchor) => {
+        const href = anchor.href || '';
+        if (!href.startsWith('http')) return;
+        let parsed;
+        try { parsed = new URL(href); } catch { return; }
+        const domain = norm(parsed.hostname);
+        if (!domain || /bing\.com/i.test(domain)) return;
+        const container = anchor.closest('li.b_algo') || anchor.parentElement || anchor;
+        const snippet = clean(container?.querySelector('.b_caption p')?.innerText || container?.innerText || '', 420).replace(clean(anchor.textContent || '', 300), '');
+        pushCandidate(anchor.textContent || '', href, domain, snippet);
+      });
+      if (/ai answer|copilot answer/.test(bodyText)) featureSet.add('AI Answer');
+      if (/top stories/.test(bodyText)) featureSet.add('Top Stories');
+      if (/shopping/.test(bodyText)) featureSet.add('Shopping');
+      if (/videos/.test(bodyText)) featureSet.add('Videos');
+      if (/featured snippet|answers/.test(bodyText)) featureSet.add('Featured Snippet');
+    } else if (host === 'duckduckgo.com' && (url.pathname.startsWith('/') || url.pathname.startsWith('/html'))) {
+      engine = 'duckduckgo';
+      query = clean(document.querySelector('input[name="q"], textarea[name="q"]')?.value || url.searchParams.get('q') || '', 300);
+      document.querySelectorAll('[data-testid="result"] h2 a, .result__title a').forEach((anchor) => {
+        const href = anchor.href || '';
+        if (!href.startsWith('http')) return;
+        let parsed;
+        try { parsed = new URL(href); } catch { return; }
+        const domain = norm(parsed.hostname);
+        if (!domain || /duckduckgo\.com/i.test(domain)) return;
+        const container = anchor.closest('[data-testid="result"]') || anchor.closest('.result') || anchor.parentElement || anchor;
+        const snippet = clean(container?.querySelector('[data-result="snippet"], .result__snippet')?.innerText || container?.innerText || '', 420).replace(clean(anchor.textContent || '', 300), '');
+        pushCandidate(anchor.textContent || '', href, domain, snippet);
+      });
+      if (/news/.test(bodyText)) featureSet.add('News Module');
+      if (/videos/.test(bodyText)) featureSet.add('Videos');
+      if (/shopping/.test(bodyText)) featureSet.add('Shopping');
+    } else {
+      return { error: 'This page is not a supported Google, Bing, or DuckDuckGo results page.' };
+    }
+
+    const results = candidates.slice(0, 10).map((item, index) => ({ rank: index + 1, ...item }));
+    return { engine, query, serpFeatures: [...featureSet], results, pageUrl: window.location.href };
+  } catch (error) {
+    return { error: `Search page read failed: ${error?.message || 'Unknown error'}` };
+  }
+}
+
+async function inspectCurrentTab() {
+  const tab = await getInspectionTargetTab();
+  if (!tab?.id || !tab.url) return setStatus('No ChatGPT or search tab found to inspect.', 'error');
+
+  try {
+    if (/^https:\/\/(chatgpt\.com|chat\.openai\.com)\//.test(tab.url)) {
+      const injectionResults = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func: fetchConversationPayloadInPage });
+      const result = injectionResults?.[0]?.result;
+      if (!result) return setStatus('No data returned from the page.', 'error');
+      if (result.error) return setStatus(result.error, 'error');
+      lastChatgptData = { ...parseChatgptPayload(result.payload), conversationId: result.conversationId, pageUrl: result.pageUrl || tab.url || '', browser: getBrowserLabel(), capturedAt: new Date().toISOString() };
+      await chrome.storage.local.set({ pendingChatgptSnapshot: lastChatgptData });
+      await saveLocalState();
+      renderChatgpt(lastChatgptData);
+      renderCombined();
+      renderHistory();
+      setStatus(`Loaded ChatGPT conversation.${lastChatgptData.hiddenLikely ? ' Some live tool calls may still be missing from this payload.' : ''}`, 'ok');
+      if (!isFullPage) switchTab('chatgpt');
+      return;
+    }
+
+    if (/^https:\/\/((([a-z0-9-]+\.)*google\.)|(([a-z0-9-]+\.)*bing\.com)|duckduckgo\.com)/i.test(tab.url)) {
+      const { pendingGoogleQuery = '', pendingChatgptSnapshot = null } = await chrome.storage.local.get(['pendingGoogleQuery', 'pendingChatgptSnapshot']);
+      if (!lastChatgptData && pendingChatgptSnapshot) lastChatgptData = pendingChatgptSnapshot;
+      renderChatgpt(lastChatgptData);
+      const injectionResults = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func: fetchSearchResultsInPage });
+      const result = injectionResults?.[0]?.result;
+      if (!result) return setStatus('No data returned from the search page.', 'error');
+      if (result.error) return setStatus(result.error, 'error');
+      lastGoogleData = { ...parseGooglePayload(result, pendingGoogleQuery), pageUrl: result.pageUrl || tab.url || '', browser: getBrowserLabel() };
+      await chrome.storage.local.remove('pendingGoogleQuery');
+      await saveLocalState();
+      renderChatgpt(lastChatgptData);
+      renderGoogle(lastGoogleData);
+      renderCombined();
+      renderHistory();
+      setStatus(`Captured ${lastGoogleData.resultCount} ${lastGoogleData.engineLabel || 'search'} results locally.`, 'ok');
+      if (!isFullPage) switchTab('google');
+      return;
+    }
+
+    setStatus('Open a ChatGPT conversation or a Google, Bing, or DuckDuckGo results page first.', 'error');
+  } catch (error) {
+    setStatus(`Extension error: ${error?.message || 'Unknown error'}`, 'error');
+  }
+}
+
+async function openGoogleForQuery(query) {
+  const cleanQuery = sanitizeString(query, 300);
+  if (!cleanQuery) return setStatus('No query available to open in Google.', 'error');
+  activeView = 'google';
+  const currentTab = await getInspectionTargetTab();
+  await chrome.storage.local.set({
+    pendingGoogleQuery: cleanQuery,
+    pendingChatgptSnapshot: lastChatgptData,
+    inspectorActiveView: 'google'
+  });
+  const googleTab = await chrome.tabs.create({
+    url: `https://www.google.com/search?q=${encodeURIComponent(cleanQuery)}`,
+    active: false
+  });
+  await openFullPageDashboard(true, googleTab?.id || currentTab?.id || 0, 'google');
+  setStatus('Opened Google and dashboard.', 'ok');
+  showToast('Opened Google and dashboard');
+}
+
+function bindEvents() {
+  els.tabButtons.forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+  if (els.refreshBtn) els.refreshBtn.addEventListener('click', inspectCurrentTab);
+  if (els.openFullPageBtn) els.openFullPageBtn.addEventListener('click', async () => {
+    const currentTab = await getInspectionTargetTab();
+    await openFullPageDashboard(true, currentTab?.id || 0, activeView);
+  });
+  if (els.themeToggleBtn) els.themeToggleBtn.addEventListener('click', toggleThemeMode);
+  if (els.exportAllBtn) els.exportAllBtn.addEventListener('click', exportFullDataset);
+  els.openGoogleBtn.addEventListener('click', async () => {
+    const query = lastChatgptData?.latestUserPrompt || lastChatgptData?.queries?.[0]?.q;
+    await openGoogleForQuery(query);
+  });
+  els.openGoogleManualBtn.addEventListener('click', async () => {
+    const manual = window.prompt('Enter a Google query to open locally:', lastChatgptData?.latestUserPrompt || lastChatgptData?.queries?.[0]?.q || '');
+    if (!manual) return;
+    await openGoogleForQuery(manual);
+  });
+  els.copyQueriesBtn.addEventListener('click', async () => {
+    if (!lastChatgptData?.queries?.length) return setStatus('There are no fan-out queries to copy.', 'error');
+    await copyText(lastChatgptData.queries.map((q, i) => `${i + 1}. ${q.q}${q.domains.length ? ` [${q.domains.join(', ')}]` : ''}`).join('\n'), 'Fan-out queries copied to system clipboard.');
+  });
+  els.copySitesBtn.addEventListener('click', async () => {
+    if (!lastChatgptData?.domainCounts?.length) return setStatus('There are no cited sites to copy.', 'error');
+    await copyText(lastChatgptData.domainCounts.map(({ domain, count }) => `${domain} (${count})`).join('\n'), 'Sites copied to system clipboard.');
+  });
+  els.copySourcesBtn.addEventListener('click', async () => {
+    if (!lastChatgptData?.sources?.length) return setStatus('There are no captured source links to copy.', 'error');
+    await copyText(lastChatgptData.sources.map((s) => `${s.domain || 'source'} | ${s.title || s.url} | ${s.url} | ${s.count}`).join('\n'), 'Source links copied to system clipboard.');
+  });
+  els.copyGoogleBtn.addEventListener('click', async () => {
+    if (!lastGoogleData?.results?.length) return setStatus('There are no Google results to copy.', 'error');
+    await copyText(lastGoogleData.results.map((r) => `#${r.rank} ${r.domain} — ${r.title}`).join('\n'), 'Google results copied to system clipboard.');
+  });
+  els.copyCombinedBtn.addEventListener('click', async () => {
+    const data = buildCombinedData();
+    if (!data) return setStatus('Capture both ChatGPT and Google data first.', 'error');
+    await copyText(data.rows.map((r) => `${r.domain} | ChatGPT: ${r.inChatgpt ? r.chatgptCitations : 0} | Google: ${r.inGoogle ? '#' + r.googleRank : 'no'} | ${r.overlapLabel}`).join('\n'), 'Combined rows copied to system clipboard.');
+  });
+  els.exportChatgptCsvBtn.addEventListener('click', exportChatgptCsv);
+  els.exportGoogleCsvBtn.addEventListener('click', exportGoogleCsv);
+  els.exportCombinedCsvBtn.addEventListener('click', exportCombinedCsv);
+  els.exportHistoryCsvBtn.addEventListener('click', exportHistoryCsv);
+  els.clearHistoryBtn.addEventListener('click', async () => {
+    comparisonHistory = [];
+    lastSavedFingerprint = '';
+    await saveLocalState();
+    renderHistory();
+    showToast('History cleared');
+  });
+}
+
+async function init() {
+  maybeSetFullPageClass();
+  bindEvents();
+  setupCollapsibleSections();
+  await loadLocalState();
+  const params = new URLSearchParams(window.location.search);
+  const requestedView = params.get('view');
+  if (requestedView && els.tabPanels[requestedView]) activeView = requestedView;
+  renderChatgpt(lastChatgptData);
+  renderGoogle(lastGoogleData);
+  renderCombined();
+  renderHistory();
+  switchTab(activeView);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    let shouldRender = false;
+    if (changes.chatgptInspectorData) { lastChatgptData = changes.chatgptInspectorData.newValue || null; shouldRender = true; }
+    if (changes.googleInspectorData) { lastGoogleData = changes.googleInspectorData.newValue || null; shouldRender = true; }
+    if (changes.comparisonHistory) { comparisonHistory = Array.isArray(changes.comparisonHistory.newValue) ? changes.comparisonHistory.newValue : []; shouldRender = true; }
+    if (changes.inspectorActiveView) { activeView = changes.inspectorActiveView.newValue || activeView; }
+    if (shouldRender) {
+      renderChatgpt(lastChatgptData);
+      renderGoogle(lastGoogleData);
+      renderCombined();
+      renderHistory();
+      switchTab(activeView);
+    }
+  });
+  await inspectCurrentTab();
+}
+
+document.addEventListener('DOMContentLoaded', init);

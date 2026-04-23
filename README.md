@@ -1,0 +1,39 @@
+# AI Query Inspector
+
+A local-only browser extension for:
+- inspecting the current ChatGPT conversation payload
+- capturing the current Google search results page locally (Mode A)
+- comparing ChatGPT-cited domains against Google domains in a combined view
+
+## Features
+- Model badge, fan-outs, cited sources, unique sites, and search-origin inference
+- Google local capture from a normal Google results page on your device
+- Combined overlap view between ChatGPT-cited sites and Google result sites
+- Full CSV export for ChatGPT, Google, and Combined views
+- Local-only storage for the last captured ChatGPT and Google datasets
+
+## Privacy
+- Reads only the active ChatGPT or Google tab when you click Refresh
+- Stores the last captured datasets locally on-device for comparison
+- Sends nothing off-device
+- No analytics or cloud sync
+
+## Notes
+- ChatGPT parsing depends on internal payload structure and may need updates if the site changes
+- Google capture is heuristic and may miss or misclassify results if Google changes its markup
+
+
+## Phase 2
+- Added overlap score summary
+- Added rank comparison table for ChatGPT vs Google
+- Added a missed-opportunity section for Google-ranked domains not cited by ChatGPT
+
+
+Phase 3 + 4 additions:
+- SERP snapshot CSV export with ChatGPT overlap columns
+- Combined dataset CSV now includes engine and SERP features
+- Local SERP feature detection
+- Local multi-engine capture for Google, Bing, and DuckDuckGo
+
+
+Version 1.6 adds local history, SERP drift tracking, page-context export fields, and Google handoff based on the latest detected user prompt.

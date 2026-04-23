@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Query Inspector</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">AI query + local search inspector</p>
+        <h1>AI Query Inspector</h1>
+      </div>
+      <div class="hero-actions">
+        <span class="mode-pill">Local-only mode</span>
+        <button id="openFullPageBtn" class="ghost-btn" title="Open the inspector in a full-page tab">Full page</button>
+        <button id="themeToggleBtn" class="ghost-btn" title="Toggle light and dark mode">Theme</button>
+        <button id="exportAllBtn" class="ghost-btn" title="Export all sections as CSV files">Full export CSVs</button>
+        <button id="refreshBtn" class="refresh-btn" title="Refresh current tab">Refresh</button>
+      </div>
+    </header>
+
+    <section id="statusCard" class="card status-card">
+      <div id="statusText">Open a ChatGPT conversation or search results page. The inspector auto-captures on open.</div>
+    </section>
+
+    <nav class="tabbar" aria-label="Views">
+      <button id="tabChatgpt" class="tab-btn active" data-tab="chatgpt">ChatGPT</button>
+      <button id="tabGoogle" class="tab-btn" data-tab="google">Google</button>
+      <button id="tabCombined" class="tab-btn" data-tab="combined">Combined</button>
+      <button id="tabHistory" class="tab-btn" data-tab="history">History</button>
+    </nav>
+
+    <section id="panelChatgpt" class="tab-panel">
+      <section class="summary-grid">
+        <article class="card metric-card model-card">
+          <span class="metric-label">Model</span>
+          <div id="modelBadge" class="model-badge muted">Unknown</div>
+        </article>
+
+        <article class="card metric-card">
+          <span class="metric-label">Fan-outs</span>
+          <div id="fanoutCount" class="metric-value">0</div>
+        </article>
+
+        <article class="card metric-card">
+          <span class="metric-label">Cited sources</span>
+          <div id="sourceCount" class="metric-value">0</div>
+        </article>
+
+        <article class="card metric-card">
+          <span class="metric-label">Unique sites</span>
+          <div id="siteCount" class="metric-value">0</div>
+        </article>
+
+        <article class="card metric-card search-origin-card">
+          <span class="metric-label">Search origin</span>
+          <div id="searchOriginBadge" class="origin-badge muted">Unknown</div>
+          <div id="searchOriginConfidence" class="origin-confidence hidden"></div>
+        </article>
+
+        <article class="card metric-card">
+          <span class="metric-label">UTM coverage</span>
+          <div id="utmCoverage" class="metric-subvalue">0 / 0</div>
+        </article>
+
+        <article class="card metric-card intensity-card">
+          <span class="metric-label">Retrieval intensity</span>
+          <div id="retrievalIntensityValue" class="metric-subvalue">0 / 0 / 0</div>
+          <div id="retrievalIntensityMeta" class="metric-meta">Fan-outs / citations / sites</div>
+        </article>
+      </section>
+
+      <section class="card utility-card search-capture-card collapsible-section">
+        <div class="section-head compact">
+          <h2>Google handoff</h2>
+          <button id="openGoogleBtn" class="ghost-btn">Open Google for prompt</button>
+        </div>
+        <p class="small-note">Opens a normal Google search tab using the latest detected user prompt and also opens the inspector in a full-page extension tab so the workflow stays visible in your browser.</p>
+      </section>
+
+      <section class="card">
+        <details id="queryExpansionDetails" class="expansion-details" open>
+          <summary class="section-head summary-toggle">
+            <span>
+              <h2>Query expansion</h2>
+              <p class="small-note">Shows the latest detected user prompt and the fan-out queries found in the saved conversation payload.</p>
+            </span>
+          </summary>
+          <div class="expansion-block">
+            <div class="expansion-label">Latest user prompt</div>
+            <div id="latestPromptText" class="prompt-box">No prompt detected yet.</div>
+          </div>
+          <div class="expansion-block">
+            <div class="expansion-label">Detected fan-out path</div>
+            <div id="queryExpansionWrap" class="expansion-tree empty-state">No fan-out queries found in this conversation payload.</div>
+          </div>
+        </details>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Fan-out queries</h2>
+          <div class="section-actions">
+            <button id="copyQueriesBtn" class="ghost-btn">Copy</button>
+            <button id="exportChatgptCsvBtn" class="ghost-btn">Full CSV</button>
+          </div>
+        </div>
+        <div id="fanoutsEmpty" class="empty-state">No fan-out queries found in this conversation payload.</div>
+        <ol id="fanoutsList" class="query-list hidden"></ol>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Citation strength</h2>
+          <span id="citationStrengthSummary" class="section-summary hidden"></span>
+        </div>
+        <div id="citationStrengthEmpty" class="empty-state">No cited domains found.</div>
+        <div id="citationStrengthWrap" class="strength-wrap hidden"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Sites cited</h2>
+          <div class="section-actions">
+            <span id="sitesSummary" class="section-summary hidden"></span>
+            <button id="copySitesBtn" class="ghost-btn">Copy</button>
+          </div>
+        </div>
+        <div id="sitesEmpty" class="empty-state">No cited domains found.</div>
+        <div id="sitesWrap" class="site-chip-wrap hidden"></div>
+      </section>
+
+
+      <section class="card collapsible-section">
+        <div class="section-head">
+          <h2>Conversation turns</h2>
+          <div class="section-actions">
+            <span id="turnsSummary" class="section-summary hidden"></span>
+          </div>
+        </div>
+        <div id="turnsEmpty" class="empty-state">No separate prompts detected yet.</div>
+        <div id="turnsWrap" class="turns-wrap hidden"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Captured sources</h2>
+          <div class="section-actions">
+            <span id="sourcesSummary" class="section-summary hidden"></span>
+            <button id="copySourcesBtn" class="ghost-btn">Copy</button>
+          </div>
+        </div>
+        <div id="sourcesEmpty" class="empty-state">No source items captured yet.</div>
+        <div id="sourcesWrap" class="result-wrap hidden"></div>
+      </section>
+    </section>
+
+    <section id="panelGoogle" class="tab-panel hidden google-layout">
+      <section class="summary-grid">
+        <article class="card metric-card">
+          <span class="metric-label">Query</span>
+          <div id="googleQueryLabel" class="metric-subvalue smallish">None</div>
+        </article>
+        <article class="card metric-card">
+          <span class="metric-label">Organic results</span>
+          <div id="googleResultCount" class="metric-value">0</div>
+        </article>
+        <article class="card metric-card">
+          <span class="metric-label">Unique sites</span>
+          <div id="googleSiteCount" class="metric-value">0</div>
+        </article>
+        <article class="card metric-card">
+          <span class="metric-label">Captured from</span>
+          <div id="googleCaptureMode" class="metric-subvalue smallish">Local page</div>
+        </article>
+        <article class="card metric-card">
+          <span class="metric-label">Engine</span>
+          <div id="googleEngineLabel" class="metric-subvalue smallish">Unknown</div>
+        </article>
+        <article class="card metric-card">
+          <span class="metric-label">SERP features</span>
+          <div id="googleFeatureCount" class="metric-subvalue smallish">0</div>
+        </article>
+      </section>
+
+      <section class="card utility-card search-capture-card">
+        <div class="section-head compact">
+          <h2>Search capture</h2>
+          <button id="openGoogleManualBtn" class="ghost-btn">Open manual search</button>
+        </div>
+        <p class="small-note">Mode A reads the currently open Google, Bing, or DuckDuckGo results page on your device. It does not call a search API or send data anywhere.</p>
+      </section>
+
+      <section class="card serp-features-card collapsible-section">
+        <div class="section-head">
+          <h2>SERP features</h2>
+          <span id="googleFeaturesSummary" class="section-summary hidden"></span>
+        </div>
+        <div id="googleFeaturesEmpty" class="empty-state">No SERP features detected yet.</div>
+        <div id="googleFeaturesWrap" class="feature-chip-wrap hidden"></div>
+      </section>
+
+      <section class="card sites-found-card collapsible-section">
+        <div class="section-head">
+          <h2>Sites found</h2>
+          <div class="section-actions">
+            <span id="googleSitesSummary" class="section-summary hidden"></span>
+          </div>
+        </div>
+        <div id="googleSitesEmpty" class="empty-state">No search sites captured yet.</div>
+        <div id="googleSitesWrap" class="site-chip-wrap hidden"></div>
+      </section>
+
+      <section class="card organic-results-card collapsible-section">
+        <div class="section-head">
+          <h2>Search results</h2>
+          <div class="section-actions">
+            <button id="copyGoogleBtn" class="ghost-btn">Copy</button>
+            <button id="exportGoogleCsvBtn" class="ghost-btn">SERP snapshot CSV</button>
+          </div>
+        </div>
+        <div id="googleEmpty" class="empty-state">No search results captured yet. Open a Google, Bing, or DuckDuckGo results tab and the extension will capture locally.</div>
+        <div id="googleResultsWrap" class="result-wrap hidden"></div>
+      </section>
+    </section>
+
+    <section id="panelCombined" class="tab-panel hidden combined-layout">
+      <section class="summary-grid combined-grid">
+        <article class="card metric-card overlap-card">
+          <span class="metric-label">Overlap score</span>
+          <div id="combinedOverlapScore" class="metric-value">0%</div>
+          <div id="combinedOverlapMeta" class="metric-meta">0 of 0 ChatGPT sites appear in Google results</div>
+        </article>
+        <article class="card metric-card">
+          <span class="metric-label">Overlap sites</span>
+          <div id="combinedOverlapCount" class="metric-value">0</div>
+        </article>
+        <article class="card metric-card">
+          <span class="metric-label">ChatGPT-only sites</span>
+          <div id="combinedChatgptOnlyCount" class="metric-value">0</div>
+        </article>
+        <article class="card metric-card">
+          <span class="metric-label">Google-only sites</span>
+          <div id="combinedGoogleOnlyCount" class="metric-value">0</div>
+        </article>
+        <article class="card metric-card">
+          <span class="metric-label">Compared query</span>
+          <div id="combinedQueryLabel" class="metric-subvalue smallish">None</div>
+        </article>
+      </section>
+
+      <section class="card comparison-card collapsible-section">
+        <div class="section-head">
+          <h2>Rank comparison</h2>
+          <div class="section-actions">
+            <button id="copyCombinedBtn" class="ghost-btn">Copy</button>
+            <button id="exportCombinedCsvBtn" class="ghost-btn">Full CSV</button>
+          </div>
+        </div>
+        <div id="combinedEmpty" class="empty-state">Capture both a ChatGPT conversation and a Google search results page to compare overlap.</div>
+        <div id="combinedWrap" class="hidden"></div>
+      </section>
+
+      <section class="card missed-card collapsible-section">
+        <div class="section-head">
+          <h2>Missed by ChatGPT</h2>
+          <span id="missedOpportunitiesSummary" class="section-summary hidden"></span>
+        </div>
+        <div id="missedOpportunitiesEmpty" class="empty-state">No Google-only domains detected yet.</div>
+        <div id="missedOpportunitiesWrap" class="result-wrap hidden"></div>
+      </section>
+    </section>
+
+    <section id="panelHistory" class="tab-panel hidden history-layout">
+      <section class="summary-grid">
+        <article class="card metric-card">
+          <span class="metric-label">Saved runs</span>
+          <div id="historyRunCount" class="metric-value">0</div>
+        </article>
+        <article class="card metric-card">
+          <span class="metric-label">Tracked queries</span>
+          <div id="historyQueryCount" class="metric-value">0</div>
+        </article>
+        <article class="card metric-card">
+          <span class="metric-label">Engines seen</span>
+          <div id="historyEngineCount" class="metric-value">0</div>
+        </article>
+        <article class="card metric-card">
+          <span class="metric-label">Latest overlap</span>
+          <div id="historyLatestOverlap" class="metric-subvalue smallish">0%</div>
+        </article>
+      </section>
+
+      <section class="card utility-card search-capture-card history-info-card collapsible-section">
+        <div class="section-head compact">
+          <h2>History</h2>
+          <div class="section-actions">
+            <button id="exportHistoryCsvBtn" class="ghost-btn">History CSV</button>
+            <button id="clearHistoryBtn" class="ghost-btn danger-ghost">Clear</button>
+          </div>
+        </div>
+        <p class="small-note">Each saved run keeps local page context such as prompt, model, engine, timestamp, browser label, overlap, and drift against the prior capture of the same query.</p>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Saved comparisons</h2>
+          <span id="historySummary" class="section-summary hidden"></span>
+        </div>
+        <div id="historyEmpty" class="empty-state">No saved comparisons yet. Capture a ChatGPT conversation and a search results page to create one.</div>
+        <div id="historyWrap" class="result-wrap hidden"></div>
+      </section>
+    </section>
+
+    <section class="card privacy-card">
+      <div class="section-head compact">
+        <h2>Privacy & safety</h2>
+      </div>
+      <ul class="note-list">
+        <li>Reads only the currently open ChatGPT or search results tab on this device. It can also auto-refresh local captures for supported tabs so the full-page inspector stays up to date without manual refresh.</li>
+        <li>Stores the last captured ChatGPT and Google datasets locally on this device for comparison.</li>
+        <li>Sends nothing off-device. No analytics. No cloud sync.</li>
+      </ul>
+    </section>
+
+    <section class="card small-print">
+      <p><strong>Note:</strong> “Search origin” is inferred from visible search queries, citations, and saved conversation metadata. Some live tool calls may not be serialized into the payload, so hidden retrieval steps can still be missed.</p>
+      <p><strong>Google Mode A:</strong> Search capture is heuristic and may miss or misclassify results if Google changes page markup.</p>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
