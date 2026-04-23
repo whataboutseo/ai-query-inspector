@@ -364,6 +364,21 @@
         </label>
       </div>
 
+      <div class="settings-row">
+        <div class="settings-row__copy">
+          <label class="settings-row__label" for="autoRefreshSelect">Auto-refresh while open</label>
+          <span class="settings-row__hint">Re-capture the active tab at this interval while the popup or full-page dashboard is open. Choose <em>Off</em> to only refresh manually.</span>
+        </div>
+        <select id="autoRefreshSelect" class="settings-row__select" aria-label="Auto-refresh interval">
+          <option value="0">Off</option>
+          <option value="15">Every 15s</option>
+          <option value="30">Every 30s</option>
+          <option value="60">Every 1m</option>
+          <option value="180">Every 3m</option>
+          <option value="600">Every 10m</option>
+        </select>
+      </div>
+
       <ul class="note-list">
         <li>ChatGPT conversations are parsed locally on this device. When auto-capture is on, parsing happens as soon as the conversation tab finishes loading; when off, nothing is read until you open this popup and click <strong>Refresh</strong>.</li>
         <li>Search pages (Google, Bing, DuckDuckGo) are captured only when you open this popup on that tab — the extension has no standing access to search domains.</li>

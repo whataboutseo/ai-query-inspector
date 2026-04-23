@@ -167,6 +167,8 @@ let themeMode = 'dark';
 // buildCombinedData() (a synchronous function called by every renderer)
 // read the current value without awaiting storage on every invocation.
 let currentSettings = { ...self.AIQIShared.DEFAULT_SETTINGS };
+// Handle for the auto-refresh setInterval; null when the feature is off.
+let autoRefreshTimer = null;
 
 function maybeSetFullPageClass() {
   if (isFullPage) document.body.classList.add('full-page');
@@ -1944,6 +1946,30 @@ function bindEvents() {
 //     matching) from chrome.storage.local and keep them in sync with
 //     changes made from another popup instance.
 // ============================================================================
+/**
+ * Start or stop the auto-refresh timer based on currentSettings
+ * .autoRefreshSeconds. Called on init, whenever the setting flips, and
+ * when the popup is about to unload (to avoid timer leaks in the
+ * full-page context where the page can live for hours).
+ */
+function applyAutoRefresh() {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+  const seconds = Number(currentSettings?.autoRefreshSeconds || 0);
+  if (!seconds || seconds < 1) return;
+  // 1s minimum guard; UI offers 15s as the lowest choice so this is
+  // belt-and-suspenders against a hand-edited settings record.
+  const ms = Math.max(1000, seconds * 1000);
+  autoRefreshTimer = setInterval(() => {
+    // inspectCurrentTab handles its own error reporting; we don't
+    // surface failures via toast here because the user didn't click
+    // anything — they'd just see intermittent toasts.
+    inspectCurrentTab().catch(() => {});
+  }, ms);
+}
+
 async function hydrateSettingsUI() {
   currentSettings = await self.AIQIShared.getSettings();
 
@@ -1972,6 +1998,19 @@ async function hydrateSettingsUI() {
     });
   }
 
+  const autoRefreshSelect = document.getElementById('autoRefreshSelect');
+  if (autoRefreshSelect) {
+    autoRefreshSelect.value = String(currentSettings.autoRefreshSeconds || 0);
+    autoRefreshSelect.addEventListener('change', async () => {
+      const seconds = Number(autoRefreshSelect.value) || 0;
+      currentSettings = await self.AIQIShared.setSettings({ autoRefreshSeconds: seconds });
+      applyAutoRefresh();
+      showToast(seconds > 0
+        ? `Auto-refreshing every ${seconds < 60 ? seconds + 's' : (seconds / 60) + 'm'}.`
+        : 'Auto-refresh turned off.');
+    });
+  }
+
   // React to settings changes made from another popup instance (e.g.
   // the full-page dashboard open in another tab flipping the toggle).
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -1980,7 +2019,20 @@ async function hydrateSettingsUI() {
     currentSettings = { ...self.AIQIShared.DEFAULT_SETTINGS, ...newValue };
     if (autoToggle) autoToggle.checked = !!currentSettings.autoCaptureChatgpt;
     if (regDomainToggle) regDomainToggle.checked = currentSettings.matchByRegisteredDomain !== false;
+    if (autoRefreshSelect) autoRefreshSelect.value = String(currentSettings.autoRefreshSeconds || 0);
+    applyAutoRefresh();
     renderCombined();
+  });
+
+  // Kick the timer now that settings are hydrated.
+  applyAutoRefresh();
+  // Clean up when the popup is torn down. MV3 popups unload aggressively
+  // so this matters mainly for the full-page dashboard.
+  window.addEventListener('pagehide', () => {
+    if (autoRefreshTimer) {
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
   });
 }
 

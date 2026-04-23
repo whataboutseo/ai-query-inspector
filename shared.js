@@ -744,6 +744,12 @@
     // pedia.org` and `wikipedia.org` count as the same site. When
     // false, exact hostname matching is used.
     matchByRegisteredDomain: true,
+    // Auto-refresh interval in seconds (0 = disabled). Only fires
+    // while the popup or full-page dashboard is open. Useful on the
+    // full-page dashboard as you iterate on a ChatGPT conversation in
+    // another tab: flip this on and the dashboard re-captures on a
+    // timer instead of requiring you to click Refresh every minute.
+    autoRefreshSeconds: 0,
   });
 
   async function getSettings() {

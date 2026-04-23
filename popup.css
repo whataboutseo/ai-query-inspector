@@ -1762,6 +1762,31 @@ body.light-mode .prompt-modal__input {
   outline: 2px solid var(--accent, #78a8ff);
   outline-offset: 2px;
 }
+
+.settings-row__select {
+  appearance: none;
+  border: 1px solid var(--border, rgba(255,255,255,0.14));
+  background: rgba(255,255,255,0.06);
+  color: var(--text, #e7ecf7);
+  border-radius: 10px;
+  padding: 8px 26px 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 4l3 3 3-3' fill='none' stroke='%239aa3b2' stroke-width='1.5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+.settings-row__select:focus-visible {
+  outline: 2px solid var(--accent, #78a8ff);
+  outline-offset: 2px;
+}
+body.light-mode .settings-row__select {
+  background-color: #f6f8ff !important;
+  color: #13255d !important;
+  border-color: rgba(42, 91, 215, 0.32) !important;
+}
 .visually-hidden {
   position: absolute;
   width: 1px;
