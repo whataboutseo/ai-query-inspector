@@ -26,14 +26,14 @@
       <div id="statusText">Open a ChatGPT conversation (auto-captured) or a Google/Bing/DuckDuckGo results page, then click Refresh to capture it locally.</div>
     </section>
 
-    <nav class="tabbar" aria-label="Views">
-      <button id="tabChatgpt" class="tab-btn active" data-tab="chatgpt">ChatGPT</button>
-      <button id="tabGoogle" class="tab-btn" data-tab="google">Google</button>
-      <button id="tabCombined" class="tab-btn" data-tab="combined">Combined</button>
-      <button id="tabHistory" class="tab-btn" data-tab="history">History</button>
-    </nav>
+    <div class="tabbar" role="tablist" aria-label="Inspector views">
+      <button id="tabChatgpt" class="tab-btn active" data-tab="chatgpt" role="tab" aria-selected="true" aria-controls="panelChatgpt" tabindex="0">ChatGPT</button>
+      <button id="tabGoogle" class="tab-btn" data-tab="google" role="tab" aria-selected="false" aria-controls="panelGoogle" tabindex="-1">Google</button>
+      <button id="tabCombined" class="tab-btn" data-tab="combined" role="tab" aria-selected="false" aria-controls="panelCombined" tabindex="-1">Combined</button>
+      <button id="tabHistory" class="tab-btn" data-tab="history" role="tab" aria-selected="false" aria-controls="panelHistory" tabindex="-1">History</button>
+    </div>
 
-    <section id="panelChatgpt" class="tab-panel">
+    <section id="panelChatgpt" class="tab-panel" role="tabpanel" aria-labelledby="tabChatgpt" tabindex="0">
       <section class="summary-grid">
         <article class="card metric-card model-card">
           <span class="metric-label">Model</span>
@@ -158,7 +158,7 @@
       </section>
     </section>
 
-    <section id="panelGoogle" class="tab-panel hidden google-layout">
+    <section id="panelGoogle" class="tab-panel hidden google-layout" role="tabpanel" aria-labelledby="tabGoogle" tabindex="0">
       <section class="summary-grid">
         <article class="card metric-card">
           <span class="metric-label">Query</span>
@@ -227,7 +227,7 @@
       </section>
     </section>
 
-    <section id="panelCombined" class="tab-panel hidden combined-layout">
+    <section id="panelCombined" class="tab-panel hidden combined-layout" role="tabpanel" aria-labelledby="tabCombined" tabindex="0">
       <div class="combined-controls">
         <label class="inline-toggle">
           <span class="switch">
@@ -301,7 +301,7 @@
       </section>
     </section>
 
-    <section id="panelHistory" class="tab-panel hidden history-layout">
+    <section id="panelHistory" class="tab-panel hidden history-layout" role="tabpanel" aria-labelledby="tabHistory" tabindex="0">
       <section class="summary-grid">
         <article class="card metric-card">
           <span class="metric-label">Saved runs</span>

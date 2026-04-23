@@ -474,9 +474,38 @@ async function loadLocalState() {
 
 function switchTab(tabName) {
   activeView = tabName;
-  els.tabButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabName));
+  // Update both visual state and ARIA state. aria-selected drives screen
+  // reader output; tabindex implements the APG roving-tabindex pattern
+  // (only the active tab is tabbable, the others are reached via arrows).
+  els.tabButtons.forEach((btn) => {
+    const isActive = btn.dataset.tab === tabName;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    btn.setAttribute('tabindex', isActive ? '0' : '-1');
+  });
   Object.entries(els.tabPanels).forEach(([name, panel]) => panel.classList.toggle('hidden', name !== tabName));
   saveLocalState().catch(() => {});
+}
+
+// ARIA Authoring Practices Guide (APG) tab pattern: Left/Right arrows
+// cycle through tabs, Home/End jump to first/last. Activation on arrow
+// movement keeps focus and selection in sync (the "automatic activation"
+// variant, appropriate here because switching tabs is cheap).
+function handleTabKeydown(event) {
+  const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+  if (!keys.includes(event.key)) return;
+  event.preventDefault();
+  const buttons = els.tabButtons;
+  const currentIndex = buttons.findIndex((b) => b.dataset.tab === activeView);
+  let next = currentIndex;
+  if (event.key === 'ArrowLeft')  next = (currentIndex - 1 + buttons.length) % buttons.length;
+  if (event.key === 'ArrowRight') next = (currentIndex + 1) % buttons.length;
+  if (event.key === 'Home') next = 0;
+  if (event.key === 'End')  next = buttons.length - 1;
+  const target = buttons[next];
+  if (!target) return;
+  switchTab(target.dataset.tab);
+  target.focus();
 }
 
 
@@ -1656,7 +1685,10 @@ async function openGoogleForQuery(query) {
 }
 
 function bindEvents() {
-  els.tabButtons.forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+  els.tabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    btn.addEventListener('keydown', handleTabKeydown);
+  });
   if (els.refreshBtn) els.refreshBtn.addEventListener('click', inspectCurrentTab);
   if (els.openFullPageBtn) els.openFullPageBtn.addEventListener('click', async () => {
     const currentTab = await getInspectionTargetTab();
