@@ -889,56 +889,29 @@ body.full-page .expansion-tree {
   min-height: 84px;
 }
 
-body.full-page .google-layout,
+/* ==========================================================================
+   FULL-PAGE PER-TAB GRID LAYOUTS  (single source of truth)
+   ------------------------------------------------------------------------
+   Prior to stage 2.8 three successive blocks of rules each declared the
+   same selectors with diverging values, and the cascade winner depended
+   on file position. Consolidated below so each layout owns its rules in
+   one place.
+   ========================================================================== */
+
+/* --- Combined tab ---------------------------------------------------------
+   12-column grid. Overlap card and summary span the full row; rank
+   comparison takes 8 cols, "missed opportunities" takes 4. Collapses to
+   stacked single-column below 1500px (see media query at the bottom). */
 body.full-page .combined-layout {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 16px;
+  align-content: start;
 }
-
-body.full-page .google-layout .summary-grid,
-body.full-page .combined-layout .summary-grid {
-  grid-column: 1 / -1;
-}
-
-body.full-page .google-layout .search-capture-card,
-body.full-page .combined-layout .overlap-card {
-  grid-column: span 12;
-}
-
-body.full-page .google-layout .serp-features-card {
-  grid-column: span 4;
-}
-
-body.full-page .google-layout .sites-found-card {
-  grid-column: span 4;
-}
-
-body.full-page .google-layout .organic-results-card {
-  grid-column: span 4;
-}
-
-body.full-page .combined-layout .comparison-card {
-  grid-column: span 8;
-}
-
-body.full-page .combined-layout .missed-card {
-  grid-column: span 4;
-}
-
-body.full-page .history-layout {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 16px;
-}
-
-body.full-page .history-layout .summary-grid {
-  grid-column: 1 / -1;
-}
-
-body.full-page .history-layout .history-main-card {
-  grid-column: 1 / -1;
-}
+body.full-page .combined-layout .summary-grid    { grid-column: 1 / -1; }
+body.full-page .combined-layout .overlap-card    { grid-column: span 12; }
+body.full-page .combined-layout .comparison-card { grid-column: span 8; }
+body.full-page .combined-layout .missed-card     { grid-column: span 4; }
 
 body.full-page .empty-state {
   min-height: 80px;
@@ -969,23 +942,32 @@ body.full-page .comparison-title {
   }
 }
 
+/* --- Responsive collapse --------------------------------------------------
+   Below 1500px the Google 3-pane grid collapses to a single stacked
+   column, and the Combined 8+4 split collapses to full-width rows.
+   Summary-grid metric cards rebalance to a 2x denser layout. */
 @media (max-width: 1500px) {
+  body.full-page .google-layout {
+    grid-template-columns: 1fr;
+  }
+  body.full-page .google-layout .serp-features-card,
+  body.full-page .google-layout .sites-found-card,
+  body.full-page .google-layout .organic-results-card {
+    grid-column: 1 / -1;
+    max-height: none;
+    overflow: visible;
+  }
+  body.full-page .combined-layout .comparison-card,
+  body.full-page .combined-layout .missed-card {
+    grid-column: span 12;
+  }
   body.full-page .summary-grid .model-card,
   body.full-page .summary-grid .search-origin-card,
   body.full-page .summary-grid .intensity-card {
     grid-column: span 6;
   }
-
   body.full-page .summary-grid > .metric-card:not(.model-card):not(.search-origin-card):not(.intensity-card) {
     grid-column: span 3;
-  }
-
-  body.full-page .google-layout .serp-features-card,
-  body.full-page .google-layout .sites-found-card,
-  body.full-page .google-layout .organic-results-card,
-  body.full-page .combined-layout .comparison-card,
-  body.full-page .combined-layout .missed-card {
-    grid-column: span 12;
   }
 }
 
@@ -1055,74 +1037,88 @@ body.full-page .comparison-title {
 }
 
 
-/* ===== Full-page layout fixes ===== */
-body.full-page .google-layout,
-body.full-page .combined-layout,
-body.full-page .history-layout {
+/* --- Google tab -----------------------------------------------------------
+   3-column grid with explicit minmax widths so feature-chips /
+   sites-found / organic-results cards have sensible proportions. Under
+   1500px collapses to a single column (see media query below). */
+body.full-page .google-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.1fr) minmax(320px, 1.35fr) minmax(420px, 1.9fr);
+  gap: 16px;
+  align-items: start;
   align-content: start;
 }
-
-body.full-page .google-layout .summary-grid {
-  grid-column: 1 / -1;
-}
-
+body.full-page .google-layout .summary-grid,
 body.full-page .google-layout .search-capture-card {
   grid-column: 1 / -1;
 }
-
 body.full-page .google-layout .serp-features-card {
-  grid-column: 1 / span 3;
+  grid-column: 1;
+  max-height: none;
+  overflow: visible;
 }
-
 body.full-page .google-layout .sites-found-card {
-  grid-column: 4 / span 4;
+  grid-column: 2;
+  max-height: calc(100vh - 240px);
+  overflow: auto;
 }
-
 body.full-page .google-layout .organic-results-card {
-  grid-column: 8 / -1;
+  grid-column: 3;
+  max-height: calc(100vh - 240px);
+  overflow: auto;
   align-self: start;
 }
-
 body.full-page .google-layout .organic-results-card #googleResultsWrap {
+  display: grid;
   grid-template-columns: 1fr;
+  gap: 12px;
 }
-
 body.full-page .google-layout .organic-results-card .result-card {
   min-height: 132px;
 }
-
 body.full-page .google-layout .sites-found-card #googleSitesWrap {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
-
 body.full-page .google-layout .serp-features-card .feature-chip-wrap {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
 }
+body.full-page .google-layout .serp-features-card .empty-state {
+  min-height: 48px;
+}
 
-body.full-page .history-layout .summary-grid {
+/* --- History tab ----------------------------------------------------------
+   Single-column outer, sub-grid of auto-fit history cards. */
+body.full-page .history-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-content: start;
+}
+body.full-page .history-layout .summary-grid,
+body.full-page .history-layout .history-info-card,
+body.full-page .history-layout .history-main-card {
   grid-column: 1 / -1;
 }
-
-body.full-page .history-layout .history-info-card {
-  grid-column: 1 / span 3;
-  align-self: start;
-}
-
 body.full-page .history-layout .history-main-card {
-  grid-column: 4 / -1;
-  align-self: start;
+  max-height: none;
+  overflow: visible;
 }
-
 body.full-page .history-layout #historyWrap {
   grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 14px;
 }
-
 body.full-page .history-layout .history-card {
-  min-height: 220px;
+  min-height: 180px;
+}
+body.full-page .history-layout .history-info-card .small-note {
+  max-width: none;
+  font-size: 0.98rem;
+  line-height: 1.65;
 }
 
+/* --- Auxiliary full-page rules (not tab-layout) --------------------------- */
 body.full-page .collapsible-section {
   position: relative;
 }
@@ -1182,16 +1178,10 @@ body.full-page .history-info-card .small-note {
   line-height: 1.65;
 }
 
-@media (max-width: 1600px) {
-  body.full-page .google-layout .serp-features-card,
-  body.full-page .google-layout .sites-found-card,
-  body.full-page .google-layout .organic-results-card,
-  body.full-page .history-layout .history-info-card,
-  body.full-page .history-layout .history-main-card {
-    grid-column: 1 / -1;
-    max-height: none;
-  }
-}
+/* (The former @media (max-width: 1600px) block only re-stated rules
+    that the consolidated 1500px breakpoint already covers; removed in
+    stage 2.8. The remaining 1100px block below kills sticky headers on
+    narrow windows.) */
 
 @media (max-width: 1100px) {
   body.full-page .collapsible-section .section-head {
@@ -1200,94 +1190,9 @@ body.full-page .history-info-card .small-note {
 }
 
 
-/* ===== Refinements for full-page Google and History tabs ===== */
-body.full-page .google-layout {
-  display: grid;
-  grid-template-columns: minmax(260px, 1.1fr) minmax(320px, 1.35fr) minmax(420px, 1.9fr);
-  gap: 16px;
-  align-items: start;
-}
-
-body.full-page .google-layout .summary-grid,
-body.full-page .google-layout .search-capture-card {
-  grid-column: 1 / -1;
-}
-
-body.full-page .google-layout .serp-features-card {
-  grid-column: 1;
-  max-height: none;
-  overflow: visible;
-}
-
-body.full-page .google-layout .sites-found-card {
-  grid-column: 2;
-  max-height: calc(100vh - 240px);
-  overflow: auto;
-}
-
-body.full-page .google-layout .organic-results-card {
-  grid-column: 3;
-  max-height: calc(100vh - 240px);
-  overflow: auto;
-}
-
-body.full-page .google-layout .serp-features-card .empty-state {
-  min-height: 48px;
-}
-
-body.full-page .google-layout .sites-found-card #googleSitesWrap {
-  grid-template-columns: 1fr;
-}
-
-body.full-page .google-layout .organic-results-card #googleResultsWrap {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
-
-body.full-page .history-layout {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-}
-
-body.full-page .history-layout .summary-grid,
-body.full-page .history-layout .history-info-card,
-body.full-page .history-layout .history-main-card {
-  grid-column: 1 / -1;
-}
-
-body.full-page .history-layout .history-main-card {
-  max-height: none;
-  overflow: visible;
-}
-
-body.full-page .history-layout #historyWrap {
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
-  gap: 14px;
-}
-
-body.full-page .history-layout .history-card {
-  min-height: 180px;
-}
-
-body.full-page .history-layout .history-info-card .small-note {
-  max-width: none;
-}
-
-@media (max-width: 1500px) {
-  body.full-page .google-layout {
-    grid-template-columns: 1fr;
-  }
-
-  body.full-page .google-layout .serp-features-card,
-  body.full-page .google-layout .sites-found-card,
-  body.full-page .google-layout .organic-results-card {
-    grid-column: 1 / -1;
-    max-height: none;
-    overflow: visible;
-  }
-}
+/* (The earlier "Refinements for full-page Google and History tabs" block
+   was consolidated into the single source-of-truth layout section
+   higher up in stage 2.8.) */
 
 
 /* Theme toggle + light mode */
