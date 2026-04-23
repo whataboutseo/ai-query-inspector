@@ -743,18 +743,21 @@ function renderChatgpt(data) {
   els.searchOriginConfidence.textContent = origin.confidence ? `${origin.confidence} confidence` : '';
   els.searchOriginConfidence.classList.toggle('hidden', !origin.confidence);
 
-  // Prompt intent classification (stage 3.3). Keyword-based, fast; shows
-  // '—' with muted styling when no prompt has been captured yet.
+  // Prompt intent classification (stage 3.3). Keyword-based, fast.
+  // When no prompt has been captured yet, hide the whole chip — showing
+  // a dash placeholder in an otherwise empty card looked like a glitch.
   if (els.promptIntentBadge) {
     const intent = self.AIQIShared.classifyPromptIntent(data?.latestUserPrompt || '');
     if (intent) {
       els.promptIntentBadge.textContent = intent.label;
       els.promptIntentBadge.className = `origin-badge ${intent.tone || 'muted'}`;
       els.promptIntentBadge.title = intent.description;
+      els.promptIntentBadge.classList.remove('hidden');
+      const row = els.promptIntentBadge.closest('.origin-line');
+      if (row) row.classList.remove('hidden');
     } else {
-      els.promptIntentBadge.textContent = '—';
-      els.promptIntentBadge.className = 'origin-badge muted';
-      els.promptIntentBadge.title = 'No prompt captured yet.';
+      const row = els.promptIntentBadge.closest('.origin-line');
+      if (row) row.classList.add('hidden');
     }
   }
 

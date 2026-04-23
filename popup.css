@@ -25,122 +25,226 @@ html, body {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-body { padding: 14px; }
-.app { display: grid; gap: 14px; }
+body { padding: 12px; }
+.app { display: grid; gap: 10px; }
+
+/* -----------------------------------------------------------------------
+   HERO — compact single-row layout that fits a 430px popup without
+   wrapping. One primary action (Refresh) on the right, three utility
+   icon buttons to its left.
+   ----------------------------------------------------------------------- */
 .hero {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 2px 4px;
+}
+.hero-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.hero-title h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hero-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 2px rgba(40,196,143,0.2);
+  flex-shrink: 0;
 }
 .hero-actions, .section-actions, .export-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
-}
-.eyebrow {
-  margin: 0 0 4px;
-  color: var(--accent);
-  font-size: 11px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  font-weight: 700;
-}
-.hero h1 {
-  margin: 0;
-  font-size: 24px;
-  line-height: 1.05;
-}
-.mode-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(40,196,143,0.32);
-  background: rgba(40,196,143,0.12);
-  color: #d9ffe9;
-  font-size: 12px;
-  font-weight: 800;
+  flex-shrink: 0;
 }
 .card {
   background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
   border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 14px;
-  box-shadow: var(--shadow);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
 }
 .status-card {
   background: linear-gradient(180deg, rgba(120,168,255,0.16), rgba(139,92,246,0.1));
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: 8px;
 }
 .metric-card {
-  min-height: 98px;
+  min-height: 72px;
   display: flex;
   flex-direction: column;
+  gap: 6px;
   justify-content: space-between;
+  padding: 10px 12px;
 }
 .metric-label {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: .06em;
   font-weight: 700;
 }
 .metric-value {
-  font-size: 32px;
+  font-size: 26px;
   font-weight: 800;
   line-height: 1;
 }
 .metric-subvalue {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 800;
   line-height: 1.1;
 }
-.model-card { grid-column: span 2; }
+/* Model card is a full-width label+badge row so the model name has
+   room to breathe. The badge itself is compact now — no more 22px
+   chip dominating the card. */
+.model-card {
+  grid-column: span 2;
+  min-height: 0;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+/* Search origin card spans full width and stacks two label+badge
+   rows (Origin, Prompt intent) plus an optional confidence sub-line. */
+.search-origin-card {
+  grid-column: span 2;
+  min-height: 0;
+  gap: 4px;
+}
+.origin-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
 .model-badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
+  gap: 6px;
+  padding: 5px 10px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(120,168,255,0.2), rgba(139,92,246,0.22));
+  background: linear-gradient(90deg, rgba(120,168,255,0.18), rgba(139,92,246,0.2));
   border: 1px solid rgba(120,168,255,0.25);
-  font-size: 22px;
+  font-size: 13px;
   font-weight: 800;
   width: fit-content;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .model-badge::before {
   content: "";
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--green);
-  box-shadow: 0 0 12px rgba(40,196,143,.8);
+  box-shadow: 0 0 6px rgba(40,196,143,.7);
+  flex-shrink: 0;
 }
 .model-badge.muted {
   background: rgba(255,255,255,0.04);
   border-color: var(--border);
   color: var(--muted);
 }
-.refresh-btn,
+
+/* ---------- BUTTONS --------------------------------------------------
+   Three tiers:
+     .primary-btn  — the main action per view (accent gradient)
+     .ghost-btn    — utility actions inside cards
+     .icon-btn     — compact square buttons for the hero utility row
+   ------------------------------------------------------------------ */
+.primary-btn {
+  appearance: none;
+  border: 1px solid rgba(120,168,255,0.4);
+  color: var(--text);
+  background: linear-gradient(90deg, rgba(120,168,255,0.28), rgba(139,92,246,0.3));
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1;
+}
+.primary-btn:hover {
+  background: linear-gradient(90deg, rgba(120,168,255,0.4), rgba(139,92,246,0.42));
+}
+.primary-btn svg { flex-shrink: 0; }
+/* Kept for back-compat. Aliased to primary-btn styles so existing
+   JS/HTML referencing .refresh-btn still renders correctly. */
+.refresh-btn {
+  appearance: none;
+  border: 1px solid rgba(120,168,255,0.4);
+  color: var(--text);
+  background: linear-gradient(90deg, rgba(120,168,255,0.28), rgba(139,92,246,0.3));
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.refresh-btn:hover {
+  background: linear-gradient(90deg, rgba(120,168,255,0.4), rgba(139,92,246,0.42));
+}
 .ghost-btn {
   appearance: none;
   border: 1px solid var(--border);
   color: var(--text);
-  background: rgba(255,255,255,0.06);
-  border-radius: 12px;
-  padding: 10px 12px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 9px;
+  padding: 6px 10px;
   font-weight: 700;
+  font-size: 12px;
   cursor: pointer;
+  line-height: 1.3;
 }
-.refresh-btn:hover,
-.ghost-btn:hover { background: rgba(255,255,255,0.11); }
+.ghost-btn:hover { background: rgba(255,255,255,0.1); }
+.icon-btn {
+  appearance: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: rgba(255,255,255,0.04);
+  border-radius: 9px;
+  padding: 6px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+.icon-btn:hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(120,168,255,0.22);
+}
+.icon-btn svg { display: block; }
 .danger-ghost {
   border-color: rgba(255,123,123,0.3);
   color: #ffd6d6;
@@ -151,16 +255,18 @@ body { padding: 14px; }
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
-.section-head.compact { margin-bottom: 8px; }
+.section-head.compact { margin-bottom: 6px; }
 .section-head h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: -0.005em;
 }
 .section-summary, .export-note {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
 }
 .export-head {
@@ -175,33 +281,33 @@ body { padding: 14px; }
   margin: 0;
   padding-left: 20px;
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 .query-item {
   background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px;
+  border-radius: 10px;
+  padding: 10px 12px;
 }
 .query-text {
-  margin: 0 0 8px;
-  font-size: 14px;
+  margin: 0 0 6px;
+  font-size: 13px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 .domain-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
 .domain-tag,
 .site-count {
   display: inline-flex;
   align-items: center;
-  padding: 6px 10px;
+  padding: 3px 9px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 .domain-tag {
@@ -219,11 +325,11 @@ body { padding: 14px; }
   gap: 10px;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 10px 12px;
+  border-radius: 10px;
+  padding: 8px 12px;
 }
 .site-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   word-break: break-all;
 }
@@ -277,16 +383,16 @@ body { padding: 14px; }
   to { transform: translateY(0); opacity: 1; }
 }
 
-.search-origin-card {
-  min-height: 114px;
-}
+/* Search-origin-card min-height reset — handled above in the
+   grid-column: span 2 block. Leave this rule in place so external
+   callers referencing the selector still match. */
 .origin-badge {
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  padding: 8px 12px;
+  padding: 4px 9px;
   border-radius: 999px;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 800;
   border: 1px solid var(--border);
 }
@@ -318,22 +424,29 @@ body { padding: 14px; }
 .tabbar {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  gap: 4px;
+  padding: 3px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 10px;
 }
 .tab-btn {
   appearance: none;
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,0.04);
+  border: 0;
+  background: transparent;
   color: var(--muted);
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-weight: 800;
+  border-radius: 7px;
+  padding: 7px 8px;
+  font-weight: 700;
+  font-size: 12.5px;
   cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
 }
+.tab-btn:hover { color: var(--text); }
 .tab-btn.active {
   color: var(--text);
-  background: linear-gradient(90deg, rgba(120,168,255,0.16), rgba(139,92,246,0.18));
-  border-color: rgba(120,168,255,0.28);
+  background: linear-gradient(90deg, rgba(120,168,255,0.22), rgba(139,92,246,0.24));
+  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
 }
 .smallish {
   font-size: 16px;
@@ -1210,12 +1323,8 @@ body.light-mode .tabbar {
   color: #0f1b4d;
 }
 
-body.light-mode .hero,
 body.light-mode .card,
 body.light-mode .tabbar,
-body.light-mode .tab-btn,
-body.light-mode .ghost-btn,
-body.light-mode .refresh-btn,
 body.light-mode .model-badge,
 body.light-mode .origin-badge,
 body.light-mode .site-row,
@@ -1225,10 +1334,63 @@ body.light-mode .history-card,
 body.light-mode .query-item,
 body.light-mode .strength-row,
 body.light-mode .prompt-box {
-  background: rgba(255,255,255,0.88) !important;
+  background: rgba(255,255,255,0.92) !important;
   color: #0f1b4d !important;
+  border-color: rgba(90,120,220,0.16) !important;
+  box-shadow: 0 4px 14px rgba(40, 70, 140, 0.08);
+}
+
+/* Hero is a flex row, not a card — keep its background transparent so
+   the page's soft gradient shows through. The tab buttons and ghost
+   buttons get their own, lighter treatment below. */
+body.light-mode .hero {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+body.light-mode .tab-btn {
+  background: transparent !important;
+  border: 0 !important;
+  color: #6172a7 !important;
+  box-shadow: none !important;
+}
+body.light-mode .tab-btn:hover {
+  color: #13255d !important;
+}
+body.light-mode .tab-btn.active {
+  background: rgba(76, 104, 217, 0.12) !important;
+  color: #13255d !important;
+  box-shadow: 0 1px 3px rgba(40, 70, 140, 0.1) !important;
+}
+body.light-mode .ghost-btn {
+  background: rgba(255, 255, 255, 0.8) !important;
+  color: #13255d !important;
+  border-color: rgba(90,120,220,0.2) !important;
+}
+body.light-mode .ghost-btn:hover {
+  background: #ffffff !important;
+  border-color: rgba(90,120,220,0.32) !important;
+}
+body.light-mode .refresh-btn,
+body.light-mode .primary-btn {
+  background: linear-gradient(90deg, rgba(76, 104, 217, 0.14), rgba(139, 92, 246, 0.16)) !important;
+  color: #13255d !important;
+  border-color: rgba(76, 104, 217, 0.32) !important;
+  box-shadow: 0 1px 3px rgba(40, 70, 140, 0.08) !important;
+}
+body.light-mode .refresh-btn:hover,
+body.light-mode .primary-btn:hover {
+  background: linear-gradient(90deg, rgba(76, 104, 217, 0.22), rgba(139, 92, 246, 0.24)) !important;
+}
+body.light-mode .icon-btn {
+  background: rgba(255, 255, 255, 0.7) !important;
+  color: #6172a7 !important;
   border-color: rgba(90,120,220,0.18) !important;
-  box-shadow: 0 12px 28px rgba(40, 70, 140, 0.08);
+}
+body.light-mode .icon-btn:hover {
+  color: #13255d !important;
+  background: #ffffff !important;
+  border-color: rgba(76, 104, 217, 0.3) !important;
 }
 
 body.light-mode .tab-btn.active,
@@ -1925,27 +2087,7 @@ body:not(.full-page) .popup-hide {
 }
 
 /* Prompt intent badge — a secondary chip rendered inside the search-origin
-   card. Sits directly below the search-origin badge. */
-.intent-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border, rgba(255,255,255,0.1));
-}
-.intent-row__label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted, #9aa3b2);
-}
-body.light-mode .intent-row {
-  border-top-color: rgba(13, 28, 74, 0.15) !important;
-}
-body.light-mode .intent-row__label { color: #3d4e86 !important; }
+   card, using the shared .origin-line row layout. */
 
 /* -----------------------------------------------------------------------
    Fan-out tree (stage 3.2).
