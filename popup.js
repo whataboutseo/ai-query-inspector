@@ -2674,6 +2674,32 @@ function bindEvents() {
       head.parentElement.classList.toggle('collapsed');
     });
   });
+
+  // Stage 5.8 settings modal open/close.
+  const settingsModal = document.getElementById('settingsModal');
+  const openSettingsModal = () => {
+    if (!settingsModal) return;
+    settingsModal.hidden = false;
+    document.body.classList.add('settings-open');
+    // Give the dialog focus for keyboard dismissal.
+    const closeBtn = document.getElementById('settingsModalClose');
+    if (closeBtn) closeBtn.focus();
+  };
+  const closeSettingsModal = () => {
+    if (!settingsModal) return;
+    settingsModal.hidden = true;
+    document.body.classList.remove('settings-open');
+  };
+  const settingsOpenBtns = [document.getElementById('settingsBtn'), document.getElementById('popupSettingsBtn')].filter(Boolean);
+  settingsOpenBtns.forEach((btn) => btn.addEventListener('click', openSettingsModal));
+  if (settingsModal) {
+    settingsModal.addEventListener('click', (e) => {
+      if (e.target.closest('[data-settings-dismiss]')) closeSettingsModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !settingsModal.hidden) closeSettingsModal();
+    });
+  }
   if (els.clearChatgptArchiveBtn) {
     els.clearChatgptArchiveBtn.addEventListener('click', handleClearChatgptArchive);
   }

@@ -812,89 +812,108 @@
       </div>
     </section>
 
-    <section class="card privacy-card">
-      <div class="section-head compact">
-        <h2><span class="info-head-icon" aria-hidden="true">🔒</span>Privacy & safety</h2>
-      </div>
+    </div>
+  </div>
 
-      <div class="settings-row">
-        <div class="settings-row__copy">
-          <label class="settings-row__label" for="autoCaptureToggle">Auto-capture ChatGPT conversations</label>
-          <span class="settings-row__hint">When enabled, every ChatGPT conversation you open is parsed in the background so it's ready when you open the popup. Turn this off to only capture when you click <strong>Refresh</strong>.</span>
+  <!-- Stage 5.8 Settings modal — Rule 10: privacy & retention live in
+       a modal, not in the dashboard body. Opens via the gear icon in
+       the dash-header / popup-header. -->
+  <div id="settingsModal" class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" hidden>
+    <div class="settings-modal__backdrop" data-settings-dismiss></div>
+    <div class="settings-modal__dialog">
+      <header class="settings-modal__header">
+        <div>
+          <div class="t-eyebrow">PRIVACY &amp; SAFETY</div>
+          <h2 class="settings-modal__title" id="settingsModalTitle">Settings</h2>
         </div>
-        <label class="switch">
-          <input type="checkbox" id="autoCaptureToggle" checked />
-          <span class="switch__slider" aria-hidden="true"></span>
-          <span class="visually-hidden">Toggle auto-capture</span>
-        </label>
-      </div>
+        <button id="settingsModalClose" class="icon-btn" type="button" aria-label="Close settings" data-settings-dismiss>
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </header>
 
-      <div class="settings-row">
-        <div class="settings-row__copy">
-          <label class="settings-row__label" for="autoRefreshSelect">Auto-refresh while open</label>
-          <span class="settings-row__hint">Re-capture the active tab at this interval while the popup or full-page dashboard is open. Choose <em>Off</em> to only refresh manually.</span>
+      <div class="settings-modal__body">
+        <div class="settings-row">
+          <div class="settings-row__copy">
+            <label class="settings-row__label" for="autoCaptureToggle">Auto-capture ChatGPT conversations</label>
+            <span class="settings-row__hint">When enabled, every ChatGPT conversation you open is parsed in the background so it's ready when you open the popup. Turn this off to only capture when you click <strong>Refresh</strong>.</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="autoCaptureToggle" checked />
+            <span class="switch__slider" aria-hidden="true"></span>
+            <span class="visually-hidden">Toggle auto-capture</span>
+          </label>
         </div>
-        <select id="autoRefreshSelect" class="settings-row__select" aria-label="Auto-refresh interval">
-          <option value="0">Off</option>
-          <option value="15">Every 15s</option>
-          <option value="30">Every 30s</option>
-          <option value="60">Every 1m</option>
-          <option value="180">Every 3m</option>
-          <option value="600">Every 10m</option>
-        </select>
-      </div>
 
-      <div class="settings-row">
-        <div class="settings-row__copy">
-          <label class="settings-row__label" for="historyRetentionSelect">Keep saved comparisons</label>
-          <span class="settings-row__hint">Cap for the History tab. Older comparisons beyond this count are dropped from local storage.</span>
+        <div class="settings-row">
+          <div class="settings-row__copy">
+            <label class="settings-row__label" for="autoRefreshSelect">Auto-refresh while open</label>
+            <span class="settings-row__hint">Re-capture the active tab at this interval while the popup or full-page dashboard is open. Choose <em>Off</em> to only refresh manually.</span>
+          </div>
+          <select id="autoRefreshSelect" class="settings-row__select" aria-label="Auto-refresh interval">
+            <option value="0">Off</option>
+            <option value="15">Every 15s</option>
+            <option value="30">Every 30s</option>
+            <option value="60">Every 1m</option>
+            <option value="180">Every 3m</option>
+            <option value="600">Every 10m</option>
+          </select>
         </div>
-        <select id="historyRetentionSelect" class="settings-row__select" aria-label="History retention">
-          <option value="25">25</option>
-          <option value="50">50</option>
-          <option value="100">100</option>
-          <option value="200">200</option>
-          <option value="500">500</option>
-        </select>
-      </div>
 
-      <div class="settings-row">
-        <div class="settings-row__copy">
-          <label class="settings-row__label" for="archiveRetentionSelect">Keep raw captures per engine</label>
-          <span class="settings-row__hint">Cap for the Viewing capture picker on the ChatGPT and Google tabs. Older captures beyond this count are dropped.</span>
+        <div class="settings-row">
+          <div class="settings-row__copy">
+            <label class="settings-row__label" for="historyRetentionSelect">Keep saved comparisons</label>
+            <span class="settings-row__hint">Cap for the History tab. Older comparisons beyond this count are dropped from local storage.</span>
+          </div>
+          <select id="historyRetentionSelect" class="settings-row__select" aria-label="History retention">
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+          </select>
         </div>
-        <select id="archiveRetentionSelect" class="settings-row__select" aria-label="Archive retention">
-          <option value="50">50</option>
-          <option value="100">100</option>
-          <option value="200">200</option>
-          <option value="500">500</option>
-          <option value="1000">1000</option>
-        </select>
-      </div>
 
-      <div class="settings-row settings-row--actions">
-        <div class="settings-row__copy">
-          <span class="settings-row__label">Clear archived captures</span>
-          <span class="settings-row__hint">Empties the picker archive only — the currently displayed capture stays in view until you refresh.</span>
+        <div class="settings-row">
+          <div class="settings-row__copy">
+            <label class="settings-row__label" for="archiveRetentionSelect">Keep raw captures per engine</label>
+            <span class="settings-row__hint">Cap for the Viewing capture picker on the ChatGPT and Google tabs. Older captures beyond this count are dropped.</span>
+          </div>
+          <select id="archiveRetentionSelect" class="settings-row__select" aria-label="Archive retention">
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+            <option value="1000">1000</option>
+          </select>
         </div>
-        <div class="settings-row__actions">
-          <button id="clearChatgptArchiveBtn" class="ghost-btn danger-ghost" type="button">Clear ChatGPT</button>
-          <button id="clearGoogleArchiveBtn" class="ghost-btn danger-ghost" type="button">Clear Google</button>
+
+        <div class="settings-row settings-row--actions">
+          <div class="settings-row__copy">
+            <span class="settings-row__label">Clear archived captures</span>
+            <span class="settings-row__hint">Empties the picker archive only — the currently displayed capture stays in view until you refresh.</span>
+          </div>
+          <div class="settings-row__actions">
+            <button id="clearChatgptArchiveBtn" class="btn btn-outline" type="button">Clear ChatGPT</button>
+            <button id="clearGoogleArchiveBtn" class="btn btn-outline" type="button">Clear Google</button>
+          </div>
         </div>
+
+        <ul class="note-list">
+          <li>ChatGPT conversations are parsed locally on this device. When auto-capture is on, parsing happens as soon as the conversation tab finishes loading; when off, nothing is read until you open this popup and click <strong>Refresh</strong>.</li>
+          <li>Search pages (Google, Bing, DuckDuckGo) are captured either from the currently open search tab, or when you use the <em>Open Google for prompt</em> handoff — in that flow the service worker auto-captures the SERP after the Google tab finishes loading.</li>
+          <li>Stored locally on this device: the latest single-slot ChatGPT / SERP snapshot, plus a timestamped archive of every capture (the picker reads from this).</li>
+          <li>Sends nothing off-device. No analytics. No cloud sync.</li>
+        </ul>
+
+        <footer class="settings-modal__footer">
+          <p class="t-meta" style="color: var(--ink-3); font-size: var(--fs-caption); line-height: 1.55; margin: 0;">
+            <strong style="color: var(--ink-2); font-weight: 500;">Note:</strong> &ldquo;Search origin&rdquo; is inferred from visible search queries, citations, and saved conversation metadata. Some live tool calls may not be serialized into the payload, so hidden retrieval steps can still be missed.
+          </p>
+          <p class="t-meta" style="color: var(--ink-3); font-size: var(--fs-caption); line-height: 1.55; margin: 0;">
+            <strong style="color: var(--ink-2); font-weight: 500;">Google Mode A:</strong> Search capture is heuristic and may miss or misclassify results if Google changes page markup.
+          </p>
+        </footer>
       </div>
-
-      <ul class="note-list">
-        <li>ChatGPT conversations are parsed locally on this device. When auto-capture is on, parsing happens as soon as the conversation tab finishes loading; when off, nothing is read until you open this popup and click <strong>Refresh</strong>.</li>
-        <li>Search pages (Google, Bing, DuckDuckGo) are captured either from the currently open search tab, or when you use the <em>Open Google for prompt</em> handoff — in that flow the service worker auto-captures the SERP after the Google tab finishes loading.</li>
-        <li>Stored locally on this device: the latest single-slot ChatGPT / SERP snapshot, plus a timestamped archive of every capture (the picker reads from this).</li>
-        <li>Sends nothing off-device. No analytics. No cloud sync.</li>
-      </ul>
-    </section>
-
-    <section class="card small-print">
-      <p><strong>Note:</strong> “Search origin” is inferred from visible search queries, citations, and saved conversation metadata. Some live tool calls may not be serialized into the payload, so hidden retrieval steps can still be missed.</p>
-      <p><strong>Google Mode A:</strong> Search capture is heuristic and may miss or misclassify results if Google changes page markup.</p>
-    </section>
     </div>
   </div>
 
