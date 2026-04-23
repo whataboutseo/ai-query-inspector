@@ -7,7 +7,7 @@
  */
 importScripts('shared.js');
 
-const { parseChatgptPayload } = self.AIQIShared;
+const { parseChatgptPayload, getSettings } = self.AIQIShared;
 
 function isChatgptUrl(url = '') {
   return /^https:\/\/(chatgpt\.com|chat\.openai\.com)\//.test(url);
@@ -16,6 +16,10 @@ function isChatgptUrl(url = '') {
 async function maybeCaptureTab(tabId, url) {
   try {
     if (!isChatgptUrl(url)) return;
+    // Honour the user's auto-capture preference. When disabled, the popup
+    // still works — it falls back to on-demand capture via Refresh.
+    const settings = await getSettings();
+    if (!settings.autoCaptureChatgpt) return;
     const res = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',

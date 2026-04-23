@@ -319,9 +319,23 @@
       <div class="section-head compact">
         <h2>Privacy & safety</h2>
       </div>
+
+      <div class="settings-row">
+        <div class="settings-row__copy">
+          <label class="settings-row__label" for="autoCaptureToggle">Auto-capture ChatGPT conversations</label>
+          <span class="settings-row__hint">When enabled, every ChatGPT conversation you open is parsed in the background so it's ready when you open the popup. Turn this off to only capture when you click <strong>Refresh</strong>.</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="autoCaptureToggle" checked />
+          <span class="switch__slider" aria-hidden="true"></span>
+          <span class="visually-hidden">Toggle auto-capture</span>
+        </label>
+      </div>
+
       <ul class="note-list">
-        <li>Auto-captures only ChatGPT conversations you open (requires ChatGPT access in the manifest). Search pages are captured only when you click the extension icon while the page is the active tab.</li>
-        <li>Stores the last captured ChatGPT conversation (including prompts and cited URLs) and the last search result set locally on this device for comparison.</li>
+        <li>ChatGPT conversations are parsed locally on this device. When auto-capture is on, parsing happens as soon as the conversation tab finishes loading; when off, nothing is read until you open this popup and click <strong>Refresh</strong>.</li>
+        <li>Search pages (Google, Bing, DuckDuckGo) are captured only when you open this popup on that tab — the extension has no standing access to search domains.</li>
+        <li>Stored locally on this device: the latest ChatGPT conversation (prompts, fan-out queries, cited URLs) and the latest SERP snapshot.</li>
         <li>Sends nothing off-device. No analytics. No cloud sync.</li>
       </ul>
     </section>

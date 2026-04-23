@@ -416,6 +416,36 @@
     return result;
   }
 
+  /**
+   * User preferences persisted in chrome.storage.local under the
+   * `aiqiSettings` key. Centralised here so the popup and the service
+   * worker agree on defaults and cannot drift.
+   */
+  const SETTINGS_KEY = 'aiqiSettings';
+  const DEFAULT_SETTINGS = Object.freeze({
+    autoCaptureChatgpt: true,
+  });
+
+  async function getSettings() {
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) return { ...DEFAULT_SETTINGS };
+    try {
+      const stored = await chrome.storage.local.get(SETTINGS_KEY);
+      const value = stored?.[SETTINGS_KEY];
+      if (!value || typeof value !== 'object') return { ...DEFAULT_SETTINGS };
+      return { ...DEFAULT_SETTINGS, ...value };
+    } catch {
+      return { ...DEFAULT_SETTINGS };
+    }
+  }
+
+  async function setSettings(patch) {
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) return { ...DEFAULT_SETTINGS };
+    const current = await getSettings();
+    const next = { ...current, ...(patch || {}) };
+    await chrome.storage.local.set({ [SETTINGS_KEY]: next });
+    return next;
+  }
+
   const api = Object.freeze({
     sanitizeString,
     normalizeDomain,
@@ -426,6 +456,10 @@
     aggregateSourceItems,
     buildConversationTurns,
     parseChatgptPayload,
+    getSettings,
+    setSettings,
+    DEFAULT_SETTINGS,
+    SETTINGS_KEY,
   });
 
   root.AIQIShared = api;

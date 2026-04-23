@@ -1597,10 +1597,24 @@ function bindEvents() {
   });
 }
 
+async function hydrateSettingsUI() {
+  const toggle = document.getElementById('autoCaptureToggle');
+  if (!toggle) return;
+  const settings = await self.AIQIShared.getSettings();
+  toggle.checked = !!settings.autoCaptureChatgpt;
+  toggle.addEventListener('change', async () => {
+    await self.AIQIShared.setSettings({ autoCaptureChatgpt: toggle.checked });
+    showToast(toggle.checked
+      ? 'Auto-capture enabled for ChatGPT conversations.'
+      : 'Auto-capture disabled. Click Refresh to capture manually.');
+  });
+}
+
 async function init() {
   maybeSetFullPageClass();
   bindEvents();
   setupCollapsibleSections();
+  await hydrateSettingsUI();
   await loadLocalState();
   const params = new URLSearchParams(window.location.search);
   const requestedView = params.get('view');
