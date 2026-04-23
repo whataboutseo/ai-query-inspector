@@ -1,93 +1,47 @@
+/* ============================================================
+   Stage 5 legacy palette — kept ALIVE for panels we haven't
+   migrated yet so they keep rendering while we walk through the
+   recipes one at a time. These values gradually get replaced by
+   design-system tokens as each recipe ports over.
+   ============================================================ */
 :root {
-  color-scheme: dark;
-  --bg: #0b1020;
   --panel: #121933;
   --panel-2: #0f1530;
   --panel-3: #172042;
-  --text: #edf2ff;
-  --muted: #9cadcf;
-  --accent: #78a8ff;
-  --accent-2: #8b5cf6;
-  --green: #28c48f;
-  --border: rgba(255,255,255,0.08);
+  --text: var(--ink);
+  --muted: var(--ink-3);
+  --green: var(--accent-2);
   --danger: #ff7b7b;
-  --shadow: 0 14px 36px rgba(0,0,0,0.35);
+  --shadow: var(--shadow-2);
+}
+html[data-theme="dark"] {
+  --panel: #121933;
+  --panel-2: #0f1530;
+  --panel-3: #172042;
+  --text: var(--ink);
+  --muted: var(--ink-3);
+  --green: var(--accent-2);
+  --danger: #ff7b7b;
+  --shadow: var(--shadow-2);
 }
 
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
   padding: 0;
-  /* Chrome MV3 popups allow up to 800px wide. 560px gives room for
-     label+value rows without wrapping, while still fitting on small
-     laptop displays without the popup clipping. */
-  width: 560px;
+  /* Popup context: design-system spec is 580px (--popup-width). */
+  width: var(--popup-width, 580px);
   min-height: 720px;
-  background: radial-gradient(circle at top, #1b2550, var(--bg) 36%);
-  color: var(--text);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
 }
 
-body { padding: 12px; }
-.app { display: grid; gap: 10px; }
+/* Full-page context — un-clamp the width and center the dashboard. */
+body.full-page, body.full-page html { width: 100%; }
+body.full-page .dashboard { max-width: var(--dash-max); margin: 20px auto; }
 
-/* -----------------------------------------------------------------------
-   HERO — compact single-row layout that fits a 430px popup without
-   wrapping. One primary action (Refresh) on the right, three utility
-   icon buttons to its left.
-   ----------------------------------------------------------------------- */
-.hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 2px 4px;
-}
-.hero-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.hero-title h1 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.hero-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 0 2px rgba(40,196,143,0.2);
-  flex-shrink: 0;
-}
-/* Claude-branded build suffix — small pill that sits after the title. */
-.hero-subtag {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(217,119,87,0.18), rgba(217,119,87,0.08));
-  border: 1px solid rgba(217,119,87,0.38);
-  color: #e8a684;
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  vertical-align: middle;
-}
-body.light-mode .hero-subtag {
-  background: linear-gradient(90deg, rgba(217,119,87,0.12), rgba(217,119,87,0.06)) !important;
-  border-color: rgba(180, 90, 50, 0.45) !important;
-  color: #a24a1d !important;
-}
-.hero-actions, .section-actions, .export-actions {
+.section-actions, .export-actions {
   display: flex;
   gap: 6px;
   align-items: center;
@@ -355,46 +309,11 @@ body.light-mode .count-badge {
 }
 
 /* ---------- BUTTONS --------------------------------------------------
-   Three tiers:
-     .primary-btn  — the main action per view (accent gradient)
-     .ghost-btn    — utility actions inside cards
-     .icon-btn     — compact square buttons for the hero utility row
+   Stage 5.2: the old .primary-btn / .refresh-btn / .icon-btn rules
+   were removed — the dashboard header now uses design-system
+   .btn-refresh + .icon-btn from components.css. .ghost-btn stays
+   for the legacy card tools until each recipe migrates.
    ------------------------------------------------------------------ */
-.primary-btn {
-  appearance: none;
-  border: 1px solid rgba(120,168,255,0.4);
-  color: var(--text);
-  background: linear-gradient(90deg, rgba(120,168,255,0.28), rgba(139,92,246,0.3));
-  border-radius: 10px;
-  padding: 7px 12px;
-  font-weight: 700;
-  font-size: 12.5px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  line-height: 1;
-}
-.primary-btn:hover {
-  background: linear-gradient(90deg, rgba(120,168,255,0.4), rgba(139,92,246,0.42));
-}
-.primary-btn svg { flex-shrink: 0; }
-/* Kept for back-compat. Aliased to primary-btn styles so existing
-   JS/HTML referencing .refresh-btn still renders correctly. */
-.refresh-btn {
-  appearance: none;
-  border: 1px solid rgba(120,168,255,0.4);
-  color: var(--text);
-  background: linear-gradient(90deg, rgba(120,168,255,0.28), rgba(139,92,246,0.3));
-  border-radius: 10px;
-  padding: 7px 12px;
-  font-weight: 700;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.refresh-btn:hover {
-  background: linear-gradient(90deg, rgba(120,168,255,0.4), rgba(139,92,246,0.42));
-}
 .ghost-btn {
   appearance: none;
   border: 1px solid var(--border);
@@ -462,27 +381,8 @@ body.light-mode .picker-select {
 }
 body.light-mode .picker-select option { background: #ffffff; color: #13255d; }
 .capture-picker-card .picker-note { margin-top: 8px; }
-.icon-btn {
-  appearance: none;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  background: rgba(255,255,255,0.04);
-  border-radius: 9px;
-  padding: 6px;
-  width: 28px;
-  height: 28px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
-}
-.icon-btn:hover {
-  color: var(--text);
-  background: rgba(255,255,255,0.1);
-  border-color: rgba(120,168,255,0.22);
-}
-.icon-btn svg { display: block; }
+/* Stage 5.2: legacy .icon-btn rules removed — design-system's
+   .icon-btn (components.css) styles the dash-header icons. */
 .danger-ghost {
   border-color: rgba(255,123,123,0.3);
   color: #ffd6d6;
@@ -659,33 +559,8 @@ body.light-mode .picker-select option { background: #ffffff; color: #13255d; }
   font-size: 12px;
   font-weight: 700;
 }
-.tabbar {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  padding: 3px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-.tab-btn {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  border-radius: 7px;
-  padding: 7px 8px;
-  font-weight: 700;
-  font-size: 12.5px;
-  cursor: pointer;
-  transition: color 120ms ease, background 120ms ease;
-}
-.tab-btn:hover { color: var(--text); }
-.tab-btn.active {
-  color: var(--text);
-  background: linear-gradient(90deg, rgba(120,168,255,0.22), rgba(139,92,246,0.24));
-  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
-}
+/* Stage 5.2: legacy .tabbar / .tab-btn rules removed — design-system
+   .dash-tabs + .dash-tab (components.css) styles the new top nav. */
 .smallish {
   font-size: 16px;
   line-height: 1.25;
@@ -1042,15 +917,8 @@ body.light-mode .history-delete-btn {
 body.full-page {
   padding: 20px;
 }
-body.full-page html, body.full-page {
-  width: 100%;
-}
 body.full-page {
   min-height: 100vh;
-}
-body.full-page .app {
-  max-width: 1440px;
-  margin: 0 auto;
 }
 body.full-page .summary-grid {
   grid-template-columns: repeat(4, 1fr);
@@ -1085,113 +953,19 @@ body.full-page .strength-wrap {
 
 
 
-/* ===== Full-page dashboard redesign ===== */
+/* ===== Full-page dashboard (5.2) =====
+   With the new top-tabs .dashboard shell there is no grid to orchestrate
+   — just give it room to breathe. The shell itself is centered via the
+   rule at the top of this file: body.full-page .dashboard { max-width:
+   var(--dash-max); margin: 20px auto; }.
+   Hide the tab-panel when inactive. */
 body.full-page {
-  min-width: 100vw;
   min-height: 100vh;
   overflow-y: auto;
-  background:
-    radial-gradient(1200px 700px at 10% 0%, rgba(70, 110, 255, 0.22), transparent 55%),
-    radial-gradient(1000px 600px at 100% 100%, rgba(35, 210, 180, 0.08), transparent 45%),
-    linear-gradient(180deg, #111c55 0%, #07133a 100%);
+  background: var(--bg);
+  padding: 0;
 }
-
-body.full-page .app {
-  width: min(1880px, calc(100vw - 32px));
-  max-width: none;
-  min-height: calc(100vh - 32px);
-  margin: 16px auto;
-  padding: 20px 22px 28px;
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  grid-template-areas:
-    "hero hero"
-    "tabs picker"
-    "tabs main";
-  gap: 18px;
-  box-sizing: border-box;
-}
-
-body.full-page .capture-picker-row {
-  grid-area: picker;
-  margin-bottom: 0;
-}
-
-body.full-page .hero {
-  grid-area: hero;
-  align-items: start;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 18px 20px;
-}
-
-body.full-page .hero > div:first-child {
-  max-width: 640px;
-}
-
-body.full-page .hero h1 {
-  font-size: 2.4rem;
-  line-height: 1.05;
-  margin-top: 4px;
-}
-
-body.full-page .eyebrow {
-  font-size: 0.92rem;
-  letter-spacing: 0.16em;
-}
-
-body.full-page .hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 12px;
-  align-self: start;
-}
-
-body.full-page #statusCard {
-  grid-column: 1 / -1;
-  margin-top: -6px;
-}
-
-body.full-page .tabbar {
-  grid-area: tabs;
-  position: sticky;
-  top: 12px;
-  align-self: start;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: rgba(7, 17, 56, 0.46);
-  border: 1px solid rgba(155, 176, 255, 0.16);
-  border-radius: 24px;
-  padding: 14px;
-  backdrop-filter: blur(14px);
-}
-
-body.full-page .tab-btn {
-  width: 100%;
-  min-height: 52px;
-  justify-content: flex-start;
-  padding-inline: 16px;
-  font-size: 1rem;
-}
-
-body.full-page .tab-panel {
-  grid-area: main;
-  display: block;
-}
-
-body.full-page .tab-panel.hidden {
-  display: none;
-}
-
-/* Stage 4.4.1: privacy-card and small-print fall outside the defined
-   grid areas and would otherwise auto-place into the narrow tabs
-   column, wrapping one word per line. Span the full grid width. */
-body.full-page .privacy-card,
-body.full-page .small-print {
-  grid-column: 1 / -1;
-}
+body.full-page .tab-panel.hidden { display: none; }
 
 body.full-page .summary-grid {
   display: grid;
@@ -1363,11 +1137,6 @@ body.full-page .comparison-title {
 }
 
 @media (min-width: 2000px) {
-  body.full-page .app {
-    width: min(2200px, calc(100vw - 40px));
-    grid-template-columns: 340px minmax(0, 1fr);
-  }
-
   body.full-page .summary-grid > .metric-card:not(.model-card):not(.search-origin-card):not(.intensity-card) {
     grid-column: span 1.5;
   }
@@ -1403,25 +1172,7 @@ body.full-page .comparison-title {
 }
 
 @media (max-width: 1100px) {
-  body.full-page .app {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "hero"
-      "tabs"
-      "picker"
-      "main";
-  }
-
-  body.full-page .tabbar {
-    position: static;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  body.full-page .tab-btn {
-    justify-content: center;
-  }
-
+  body.full-page .dashboard { margin: 12px; }
   body.full-page .summary-grid > .card,
   body.full-page .summary-grid .model-card,
   body.full-page .summary-grid .search-origin-card,
@@ -1431,31 +1182,13 @@ body.full-page .comparison-title {
 }
 
 @media (max-width: 760px) {
-  body.full-page .app {
-    width: calc(100vw - 16px);
-    margin: 8px auto;
-    padding: 12px;
-  }
-
-  body.full-page .hero {
-    padding: 14px;
-  }
-
-  body.full-page .hero h1 {
-    font-size: 1.8rem;
-  }
-
-  body.full-page .tabbar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
+  body.full-page .dashboard { margin: 8px; }
   body.full-page .summary-grid > .card,
   body.full-page .summary-grid .model-card,
   body.full-page .summary-grid .search-origin-card,
   body.full-page .summary-grid .intensity-card {
     grid-column: span 12;
   }
-
   body.full-page #fanoutsList,
   body.full-page #sitesWrap,
   body.full-page #googleSitesWrap,
@@ -1627,12 +1360,14 @@ body.full-page .history-info-card .small-note {
    higher up in stage 2.8.) */
 
 
-/* Theme toggle + light mode */
+/* Theme toggle + light mode
+   Stage 5.2: the body background is now driven by the design-system
+   --bg token (warm off-white in light, deep navy in dark via
+   tokens-dark.css). Legacy body.light-mode scoped rules below still
+   apply to un-migrated panels (site-row, history-card etc.) until
+   each recipe ports over in 5.3+. */
 body.light-mode {
-  background:
-    radial-gradient(1200px 700px at 10% 0%, rgba(80, 120, 255, 0.10), transparent 50%),
-    linear-gradient(180deg, #f3f7ff 0%, #eaf0ff 100%);
-  color: #0f1b4d;
+  color: var(--ink);
 }
 
 body.light-mode .app,

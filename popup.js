@@ -65,7 +65,7 @@ const els = {
   exportAllBtn: document.getElementById('exportAllBtn'),
   toast: document.getElementById('toast'),
 
-  tabButtons: Array.from(document.querySelectorAll('.tab-btn')),
+  tabButtons: Array.from(document.querySelectorAll('.dash-tab')),
   tabPanels: {
     chatgpt: document.getElementById('panelChatgpt'),
     google: document.getElementById('panelGoogle'),
