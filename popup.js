@@ -1,6 +1,35 @@
-// Parsing helpers live in shared.js (loaded by popup.html before this file)
-// so background.js and popup.js cannot drift. Destructure once here; every
-// local usage below binds against these constants.
+/* ============================================================================
+ * popup.js — entry point for both the 430px popup and the full-page dashboard
+ * ----------------------------------------------------------------------------
+ * File structure (skim these banners to find code quickly):
+ *   1. IMPORTS         — shared helpers + storage from shared.js
+ *   2. DOM REFERENCES  — els.* map and module-scope state variables
+ *   3. UTILITIES       — toasts, status messages, modal, theme, slugify, csv
+ *   4. PARSING WRAPPER — parseChatgptPayload(strict:true) pass-through
+ *   5. RENDERERS       — renderChatgpt, renderGoogle, renderCombined,
+ *                        renderHistory + their sub-rendering helpers
+ *   6. DATA BUILDERS   — buildCombinedData, buildGoogleData, fingerprinting
+ *   7. EXPORTS         — exportChatgptCsv/GoogleCsv/CombinedCsv/HistoryCsv,
+ *                        exportFullDataset
+ *   8. PAGE INJECTION  — fetchConversationPayloadInPage,
+ *                        fetchSearchResultsInPage (run in MAIN world)
+ *   9. INSPECTION      — inspectCurrentTab, openGoogleForQuery,
+ *                        openFullPageDashboard
+ *  10. EVENT BINDINGS  — bindEvents, handleTabKeydown, switchTab
+ *  11. SETTINGS        — hydrateSettingsUI
+ *  12. INIT            — init() + DOMContentLoaded wiring
+ *
+ * A future refactor may split sections 7–9 into their own files. For now
+ * the module globals in section 2 are referenced from most other sections,
+ * so splitting would require heavy parameter plumbing.
+ * ========================================================================= */
+
+// ============================================================================
+// 1. IMPORTS — parsing helpers and storage live in shared.js (loaded by
+//    popup.html before this file) so background.js and popup.js cannot
+//    drift. Destructure once here; every local usage below binds against
+//    these constants.
+// ============================================================================
 const {
   sanitizeString,
   normalizeDomain,
@@ -12,13 +41,20 @@ const {
   buildConversationTurns,
 } = self.AIQIShared;
 
-// Thin wrapper so existing call sites don't need the strict:true option.
-// The popup historically threw on malformed payloads and relied on the
-// catch block in inspectCurrentTab() to surface the error to the user.
+// ============================================================================
+// 4. PARSING WRAPPER — the popup historically threw on malformed payloads
+//    and relied on the catch block in inspectCurrentTab() to surface the
+//    error to the user. Preserve that behavior via strict:true.
+// ============================================================================
 function parseChatgptPayload(raw) {
   return self.AIQIShared.parseChatgptPayload(raw, { strict: true });
 }
 
+// ============================================================================
+// 2. DOM REFERENCES — cached on popup load. Any element not available at
+//    parse time (e.g. modal children) is looked up lazily inside its
+//    consumer function instead.
+// ============================================================================
 const els = {
   statusText: document.getElementById('statusText'),
   refreshBtn: document.getElementById('refreshBtn'),
@@ -212,6 +248,11 @@ async function getInspectionTargetTab() {
   return broaderCandidates[0] || active || null;
 }
 
+// ============================================================================
+// 3. UTILITIES — status text, toasts, modal, theme, slugify, csv escape,
+//    download helpers, formatting. Kept at the top because every other
+//    section uses at least one of them.
+// ============================================================================
 function setStatus(message, kind = 'warn') {
   els.statusText.textContent = message;
   els.statusText.className = kind === 'ok' ? 'status-ok' : kind === 'error' ? 'status-error' : 'status-warn';
@@ -366,6 +407,11 @@ function rowsToDelimited(rows, delimiter='\t') {
   }).join(delimiter)).join('\n');
 }
 
+// ============================================================================
+// 7. EXPORTS — CSV and full-dataset dumps. Each tab's export lives near
+//    its renderer later in the file; exportFullDataset is the aggregate
+//    "dump everything" button.
+// ============================================================================
 function exportFullDataset() {
   const combined = buildCombinedData();
   const baseName = slugify(lastChatgptData?.latestUserPrompt || lastGoogleData?.query || 'inspector-export', 'inspector-export');
@@ -599,6 +645,11 @@ function renderCitationStrength(data) {
   });
 }
 
+// ============================================================================
+// 5. RENDERERS — one per tab panel plus shared sub-renderers. Every
+//    render* function reads module-scope state set by section 4 (parsed
+//    payload) or section 9 (inspection results).
+// ============================================================================
 function renderChatgpt(data) {
   els.modelBadge.textContent = data?.model || 'Unknown';
   els.modelBadge.classList.toggle('muted', !data?.model);
@@ -921,6 +972,10 @@ function renderGoogle(data) {
   });
 }
 
+// ============================================================================
+// 6. DATA BUILDERS — derive presentation-ready records from the raw
+//    ChatGPT + Google state. Consumed by both renderers and exporters.
+// ============================================================================
 function buildCombinedData() {
   if (!lastChatgptData || !lastGoogleData) return null;
 
@@ -1412,6 +1467,12 @@ function exportHistoryCsv() {
   showToast('History CSV exported');
 }
 
+// ============================================================================
+// 8. PAGE INJECTION — functions serialised into chrome.scripting.execute-
+//    Script({world:'MAIN'}) and run *in the target tab's page context*.
+//    They must not reference any outer closures beyond built-ins; they
+//    can only return structured-clonable values.
+// ============================================================================
 async function fetchConversationPayloadInPage() {
   const localSanitizeString = (value, maxLen = 500) => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, maxLen) : '';
   try {
@@ -1614,6 +1675,12 @@ async function fetchSearchResultsInPage() {
   }
 }
 
+// ============================================================================
+// 9. INSPECTION — glue code: identify the active tab, inject the
+//    page-context function, parse the result, persist to storage, and
+//    kick off renderers. Plus helpers for the "Open Google for prompt"
+//    workflow and opening the full-page dashboard.
+// ============================================================================
 async function inspectCurrentTab() {
   const tab = await getInspectionTargetTab();
   if (!tab?.id || !tab.url) return setStatus('No ChatGPT or search tab found to inspect.', 'error');
@@ -1684,6 +1751,10 @@ async function openGoogleForQuery(query) {
   showToast('Opened Google and dashboard');
 }
 
+// ============================================================================
+// 10. EVENT BINDINGS — wire every button click, keyboard interaction,
+//     and storage change listener. Called once from init(); never again.
+// ============================================================================
 function bindEvents() {
   els.tabButtons.forEach((btn) => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
@@ -1745,6 +1816,11 @@ function bindEvents() {
   });
 }
 
+// ============================================================================
+// 11. SETTINGS — hydrate preference toggles (auto-capture, reg-domain
+//     matching) from chrome.storage.local and keep them in sync with
+//     changes made from another popup instance.
+// ============================================================================
 async function hydrateSettingsUI() {
   currentSettings = await self.AIQIShared.getSettings();
 
@@ -1785,6 +1861,9 @@ async function hydrateSettingsUI() {
   });
 }
 
+// ============================================================================
+// 12. INIT — single entry point for both popup and full-page contexts.
+// ============================================================================
 async function init() {
   maybeSetFullPageClass();
   bindEvents();
