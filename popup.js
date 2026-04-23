@@ -1410,8 +1410,16 @@ async function fetchSearchResultsInPage() {
   try {
     const url = new URL(window.location.href);
     const host = norm(url.hostname);
-    const bodyText = clean(document.body?.innerText || '', 24000).toLowerCase();
     const featureSet = new Set();
+    // Helper: detect a SERP feature by trying each selector in `selectors`.
+    // DOM-based detection replaces the old bodyText regex approach, which
+    // produced false positives whenever a user's query contained phrases
+    // like "top stories" or "featured snippet". Selectors are lenient
+    // against Google markup drift — we list a few alternative hooks per
+    // feature and any match wins.
+    const hasAny = (selectors) => selectors.some((sel) => {
+      try { return !!document.querySelector(sel); } catch { return false; }
+    });
     const seen = new Set();
     let engine = '';
     let query = '';
@@ -1480,11 +1488,40 @@ async function fetchSearchResultsInPage() {
           pushCandidate(picked.h3.textContent || '', picked.href, picked.domain, snippet);
         }
       }
-      if (/ai overview|overview from ai/.test(bodyText) || document.querySelector('[data-attrid="title"]')) featureSet.add('AI Overview');
-      if (/featured snippet/.test(bodyText) || document.querySelector('.hgKElc, .xpdopen .DKV0Md')) featureSet.add('Featured Snippet');
-      if (/top stories/.test(bodyText)) featureSet.add('Top Stories');
-      if (/shopping/.test(bodyText)) featureSet.add('Shopping');
-      if (/videos/.test(bodyText) || document.querySelector('a[href*="youtube.com"]')) featureSet.add('Videos');
+      // Google SERP-feature detection via DOM hooks. We prefer structural
+      // selectors over text scanning so a user's own query can't trigger
+      // false positives.
+      if (hasAny([
+        '#ai-overview', '#AI-Overview', '[data-attrid="AIOverviewTitle"]',
+        '[aria-label*="AI Overview" i]', 'div[data-attrid*="overview" i]',
+        'div[jscontroller][data-q]'
+      ])) featureSet.add('AI Overview');
+      if (hasAny([
+        '.hgKElc', '.xpdopen .DKV0Md', '[data-attrid="wa:/description"]',
+        '.ifM9O', '.kp-blk > div:first-child'
+      ])) featureSet.add('Featured Snippet');
+      if (hasAny([
+        'g-section-with-header[data-hveid]', 'g-news-card',
+        'div[data-attrid*="news" i]', '.WlydOe'
+      ])) featureSet.add('Top Stories');
+      if (hasAny([
+        '.commercial-unit-desktop-top', '.sh-dgr__content',
+        'g-scrolling-carousel[data-attrid*="shopping" i]', '.pla-unit'
+      ])) featureSet.add('Shopping');
+      if (hasAny([
+        'video-voyager', 'a[href*="youtube.com/watch"]',
+        'g-scrolling-carousel[data-attrid*="video" i]', '#videobox'
+      ])) featureSet.add('Videos');
+      if (hasAny(['.related-question-pair', '[jsname="Cpkphb"]']))
+        featureSet.add('People Also Ask');
+      if (hasAny([
+        '.knowledge-panel', '.kno-kp', '.kp-blk',
+        '[data-attrid*="kc:/common/topic"]'
+      ])) featureSet.add('Knowledge Panel');
+      if (hasAny(['#imagebox_bigimages', 'g-section-with-header g-img', '.isv-r']))
+        featureSet.add('Images Pack');
+      if (hasAny(['.rllt__details', '[data-attrid*="kc:/location"]']))
+        featureSet.add('Local Pack');
     } else if (/(^|\.)bing\.com$/i.test(host)) {
       engine = 'bing';
       query = clean(document.querySelector('textarea[name="q"], input[name="q"], #sb_form_q')?.value || url.searchParams.get('q') || '', 300);
@@ -1503,11 +1540,15 @@ async function fetchSearchResultsInPage() {
         const snippet = clean(container.querySelector('.b_caption p')?.innerText || container.innerText || '', 420).replace(clean(anchor.textContent || '', 300), '');
         pushCandidate(anchor.textContent || '', href, domain, snippet);
       });
-      if (/ai answer|copilot answer/.test(bodyText)) featureSet.add('AI Answer');
-      if (/top stories/.test(bodyText)) featureSet.add('Top Stories');
-      if (/shopping/.test(bodyText)) featureSet.add('Shopping');
-      if (/videos/.test(bodyText)) featureSet.add('Videos');
-      if (/featured snippet|answers/.test(bodyText)) featureSet.add('Featured Snippet');
+      // Bing SERP-feature detection.
+      if (hasAny([
+        'cib-serp-main', 'div.codex-sky-answer',
+        '[class*="copilot" i]', '[class*="cib" i]'
+      ])) featureSet.add('AI Answer');
+      if (hasAny(['div[data-feedbk-ids*="News"]', '.news-card', 'li.b_ans .b_algoheader'])) featureSet.add('Top Stories');
+      if (hasAny(['.slide[data-ptype="Shopping"]', '.pa_content.shop', '[data-partnertag="shopping"]'])) featureSet.add('Shopping');
+      if (hasAny(['.vrhdata', '.mc_vtvc', '.video_card'])) featureSet.add('Videos');
+      if (hasAny(['.b_ans', '.b_answer', '.b_expPag', '.tbcont'])) featureSet.add('Featured Snippet');
     } else if (host === 'duckduckgo.com' && (url.pathname.startsWith('/') || url.pathname.startsWith('/html'))) {
       engine = 'duckduckgo';
       query = clean(document.querySelector('input[name="q"], textarea[name="q"]')?.value || url.searchParams.get('q') || '', 300);
@@ -1528,9 +1569,11 @@ async function fetchSearchResultsInPage() {
         const snippet = clean(container.querySelector('[data-result="snippet"], .result__snippet')?.innerText || container.innerText || '', 420).replace(clean(anchor.textContent || '', 300), '');
         pushCandidate(anchor.textContent || '', href, domain, snippet);
       });
-      if (/news/.test(bodyText)) featureSet.add('News Module');
-      if (/videos/.test(bodyText)) featureSet.add('Videos');
-      if (/shopping/.test(bodyText)) featureSet.add('Shopping');
+      // DuckDuckGo SERP-feature detection.
+      if (hasAny(['article[data-testid="news-results"]', '.news-card', '.module--news'])) featureSet.add('News Module');
+      if (hasAny(['.module--videos', '.tile--vid', 'article[data-testid="videos-results"]'])) featureSet.add('Videos');
+      if (hasAny(['.module--shopping', 'article[data-testid="shopping-results"]'])) featureSet.add('Shopping');
+      if (hasAny(['.ai-assist', '[data-testid="ai-assist"]'])) featureSet.add('AI Answer');
     } else {
       return { error: 'This page is not a supported Google, Bing, or DuckDuckGo results page.' };
     }
