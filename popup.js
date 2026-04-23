@@ -572,39 +572,101 @@ function renderQueryExpansion(data) {
   }
 
   els.queryExpansionWrap.className = 'expansion-tree';
-  const root = document.createElement('div');
-  root.className = 'expansion-root';
 
-  const node = document.createElement('div');
-  node.className = 'expansion-node';
+  // Stage 3.2: multi-turn conversations render as a tree of turns, each
+  // turn showing prompt -> fan-out queries -> domain chips. A
+  // conversation with only one turn (or where turn metadata is missing)
+  // falls back to the previous flat prompt-plus-queries layout.
+  const turns = Array.isArray(data?.conversationTurns) ? data.conversationTurns : [];
+  const hasRichTurns = turns.length > 1 && turns.some((t) => (t.queries || []).length > 0);
 
-  const promptLabel = document.createElement('div');
-  promptLabel.className = 'expansion-node-label';
-  promptLabel.textContent = 'Prompt';
+  const tree = document.createElement('div');
+  tree.className = 'expansion-tree-wrap';
 
-  const promptBox = document.createElement('div');
-  promptBox.className = 'expansion-root-title';
-  promptBox.textContent = prompt;
+  const appendQueryList = (container, queryList) => {
+    const list = document.createElement('div');
+    list.className = 'expansion-query-list';
+    queryList.forEach((item, index) => {
+      const row = document.createElement('div');
+      row.className = 'expansion-query-item';
+      const qText = document.createElement('div');
+      qText.className = 'expansion-query-text';
+      qText.textContent = `${index + 1}. ${item.q}`;
+      row.appendChild(qText);
+      if (Array.isArray(item.domains) && item.domains.length) {
+        const chips = document.createElement('div');
+        chips.className = 'expansion-domain-chips';
+        item.domains.slice(0, 10).forEach((d) => {
+          const chip = document.createElement('span');
+          chip.className = 'expansion-domain-chip';
+          chip.textContent = d;
+          chips.appendChild(chip);
+        });
+        row.appendChild(chips);
+      }
+      list.appendChild(row);
+    });
+    container.appendChild(list);
+  };
 
-  const fanoutLabel = document.createElement('div');
-  fanoutLabel.className = 'expansion-node-label';
-  fanoutLabel.textContent = 'Fan-out queries';
+  if (hasRichTurns) {
+    turns.forEach((turn) => {
+      const turnNode = document.createElement('div');
+      turnNode.className = 'expansion-turn';
 
-  const list = document.createElement('div');
-  list.className = 'expansion-query-list';
-  queries.forEach((item, index) => {
-    const row = document.createElement('div');
-    row.className = 'expansion-query-item';
-    row.textContent = `${index + 1}. ${item.q}`;
-    list.appendChild(row);
-  });
+      const turnHead = document.createElement('div');
+      turnHead.className = 'expansion-turn-head';
+      const turnPill = document.createElement('span');
+      turnPill.className = 'expansion-turn-pill';
+      turnPill.textContent = `Turn ${turn.index}`;
+      const turnMeta = document.createElement('span');
+      turnMeta.className = 'expansion-turn-meta';
+      turnMeta.textContent = `${turn.queryCount || (turn.queries || []).length} queries · ${turn.citedSourceCount || 0} cited · ${turn.uniqueSiteCount || 0} sites`;
+      turnHead.appendChild(turnPill);
+      turnHead.appendChild(turnMeta);
+      turnNode.appendChild(turnHead);
 
-  node.appendChild(promptLabel);
-  node.appendChild(promptBox);
-  node.appendChild(fanoutLabel);
-  node.appendChild(list);
-  root.appendChild(node);
-  els.queryExpansionWrap.appendChild(root);
+      if (turn.prompt) {
+        const promptLabel = document.createElement('div');
+        promptLabel.className = 'expansion-node-label';
+        promptLabel.textContent = 'Prompt';
+        const promptBox = document.createElement('div');
+        promptBox.className = 'expansion-root-title';
+        promptBox.textContent = turn.prompt;
+        turnNode.appendChild(promptLabel);
+        turnNode.appendChild(promptBox);
+      }
+
+      const fanoutLabel = document.createElement('div');
+      fanoutLabel.className = 'expansion-node-label';
+      fanoutLabel.textContent = (turn.queries || []).length ? 'Fan-out queries' : 'No fan-out detected for this turn';
+      turnNode.appendChild(fanoutLabel);
+
+      if ((turn.queries || []).length) appendQueryList(turnNode, turn.queries);
+      tree.appendChild(turnNode);
+    });
+  } else {
+    // Single-turn fallback (original layout, preserved for small
+    // conversations where a tree would just be visual noise).
+    const node = document.createElement('div');
+    node.className = 'expansion-node';
+    const promptLabel = document.createElement('div');
+    promptLabel.className = 'expansion-node-label';
+    promptLabel.textContent = 'Prompt';
+    const promptBox = document.createElement('div');
+    promptBox.className = 'expansion-root-title';
+    promptBox.textContent = prompt;
+    const fanoutLabel = document.createElement('div');
+    fanoutLabel.className = 'expansion-node-label';
+    fanoutLabel.textContent = 'Fan-out queries';
+    node.appendChild(promptLabel);
+    node.appendChild(promptBox);
+    node.appendChild(fanoutLabel);
+    appendQueryList(node, queries);
+    tree.appendChild(node);
+  }
+
+  els.queryExpansionWrap.appendChild(tree);
 }
 
 function renderCitationStrength(data) {

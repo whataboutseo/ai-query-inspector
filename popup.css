@@ -1946,3 +1946,95 @@ body.light-mode .intent-row {
   border-top-color: rgba(13, 28, 74, 0.15) !important;
 }
 body.light-mode .intent-row__label { color: #3d4e86 !important; }
+
+/* -----------------------------------------------------------------------
+   Fan-out tree (stage 3.2).
+   Per-turn expansion layout: each turn renders as a block with a pill
+   header, prompt box, and a list of fan-out queries with optional
+   domain chips beneath each query.
+   ----------------------------------------------------------------------- */
+.expansion-tree-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.expansion-turn {
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.02);
+  position: relative;
+}
+.expansion-turn + .expansion-turn::before {
+  /* Thin connector line between consecutive turns, suggesting that they
+     belong to the same conversation thread without drawing a literal
+     SVG tree. */
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  width: 1px;
+  height: 8px;
+  background: rgba(120, 168, 255, 0.35);
+}
+.expansion-turn-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.expansion-turn-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, rgba(120,168,255,0.2), rgba(139,92,246,0.2));
+  border: 1px solid rgba(120,168,255,0.35);
+  color: var(--text, #e7ecf7);
+}
+.expansion-turn-meta {
+  font-size: 11px;
+  color: var(--muted, #9aa3b2);
+}
+.expansion-query-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text, #e7ecf7);
+  word-break: break-word;
+}
+.expansion-domain-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+.expansion-domain-chip {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--muted, #9aa3b2);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+}
+body.light-mode .expansion-turn {
+  background: rgba(13, 28, 74, 0.03) !important;
+  border-color: rgba(13, 28, 74, 0.12) !important;
+}
+body.light-mode .expansion-turn-pill {
+  color: #13255d !important;
+  background: rgba(42, 91, 215, 0.1) !important;
+  border-color: rgba(42, 91, 215, 0.3) !important;
+}
+body.light-mode .expansion-turn-meta    { color: #3d4e86 !important; }
+body.light-mode .expansion-query-text   { color: #13255d !important; }
+body.light-mode .expansion-domain-chip  {
+  background: rgba(13, 28, 74, 0.06) !important;
+  border-color: rgba(13, 28, 74, 0.18) !important;
+  color: #3d4e86 !important;
+}
