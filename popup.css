@@ -1898,3 +1898,26 @@ body.light-mode .inline-toggle code   { background: rgba(13, 28, 74, 0.08) !impo
 body:not(.full-page) .popup-hide {
   display: none !important;
 }
+
+/* Prompt intent badge — a secondary chip rendered inside the search-origin
+   card. Sits directly below the search-origin badge. */
+.intent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border, rgba(255,255,255,0.1));
+}
+.intent-row__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #9aa3b2);
+}
+body.light-mode .intent-row {
+  border-top-color: rgba(13, 28, 74, 0.15) !important;
+}
+body.light-mode .intent-row__label { color: #3d4e86 !important; }

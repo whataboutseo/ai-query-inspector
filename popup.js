@@ -85,6 +85,7 @@ const els = {
   citationStrengthEmpty: document.getElementById('citationStrengthEmpty'),
   citationStrengthSummary: document.getElementById('citationStrengthSummary'),
   searchOriginBadge: document.getElementById('searchOriginBadge'),
+  promptIntentBadge: document.getElementById('promptIntentBadge'),
   searchOriginConfidence: document.getElementById('searchOriginConfidence'),
   fanoutsList: document.getElementById('fanoutsList'),
   fanoutsEmpty: document.getElementById('fanoutsEmpty'),
@@ -665,6 +666,21 @@ function renderChatgpt(data) {
   els.searchOriginBadge.className = `origin-badge ${origin.tone || 'muted'}`;
   els.searchOriginConfidence.textContent = origin.confidence ? `${origin.confidence} confidence` : '';
   els.searchOriginConfidence.classList.toggle('hidden', !origin.confidence);
+
+  // Prompt intent classification (stage 3.3). Keyword-based, fast; shows
+  // '—' with muted styling when no prompt has been captured yet.
+  if (els.promptIntentBadge) {
+    const intent = self.AIQIShared.classifyPromptIntent(data?.latestUserPrompt || '');
+    if (intent) {
+      els.promptIntentBadge.textContent = intent.label;
+      els.promptIntentBadge.className = `origin-badge ${intent.tone || 'muted'}`;
+      els.promptIntentBadge.title = intent.description;
+    } else {
+      els.promptIntentBadge.textContent = '—';
+      els.promptIntentBadge.className = 'origin-badge muted';
+      els.promptIntentBadge.title = 'No prompt captured yet.';
+    }
+  }
 
   els.fanoutsList.innerHTML = '';
   const queries = data?.queries || [];

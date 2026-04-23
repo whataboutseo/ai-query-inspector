@@ -105,6 +105,107 @@
     return acc;
   }
 
+  /**
+   * Classify a user prompt into a coarse intent bucket. Used to give
+   * context to the fan-out results ("this was a comparison query, so
+   * precision over SERP matters more than recall"). Rules are
+   * lightweight — no ML, no external calls. Order matters: more
+   * specific patterns win over generic ones.
+   *
+   * Returns { label, tone, description } or null if no prompt given.
+   * Tone maps to the CSS palette used by the origin badge.
+   */
+  const INTENT_RULES = [
+    // Troubleshooting first — "docker error" or "build crashed" should
+    // classify as troubleshooting even though the same sentence may
+    // contain how-to verbs like "deploy" or "install".
+    {
+      label: 'Troubleshooting',
+      tone: 'unclear',
+      description: 'Diagnosing an error, bug, or unexpected behaviour.',
+      patterns: [
+        /\b(not working|does\s*n[’']?t work|broken|error|failed|fix|debug|troubleshoot|crash|crashes|crashed)\b/i,
+        /\bwhy (?:is|does|does\s*n[’']?t|wo\s*n[’']?t|can\s*n[’']?t|isn[’']?t|won[’']?t|cant|isnt|wont)\b/i,
+      ],
+    },
+    {
+      label: 'Comparison',
+      tone: 'likely',
+      description: 'Direct comparison between two or more named options.',
+      patterns: [
+        /\b(vs\.?|versus|compared? (?:to|with)|or\s+better|which is better)\b/i,
+        /\b(pros and cons|pros vs cons|tradeoffs?|trade-offs?)\b/i,
+        /\b(best of|head to head|head-to-head)\b/i,
+      ],
+    },
+    {
+      label: 'How-to',
+      tone: 'search',
+      description: 'Step-by-step or procedural instruction request.',
+      patterns: [
+        /^\s*(how to|how do i|how can i|how should i)\b/i,
+        /\b(step[- ]by[- ]step|tutorial|walkthrough|guide to)\b/i,
+        /\b(set up|configure|install|deploy|implement|build a)\b/i,
+      ],
+    },
+    {
+      label: 'Research',
+      tone: 'likely',
+      description: 'Open-ended research or background understanding.',
+      patterns: [
+        /\b(what is|what are|what does|explain|overview of|introduction to|history of)\b/i,
+        /\b(why (?:is|does|do|are)|meaning of|definition of)\b/i,
+        /\b(research|studies?|papers?|evidence)\b/i,
+      ],
+    },
+    {
+      label: 'Transactional',
+      tone: 'search',
+      description: 'Intent to buy, subscribe, sign up, or download.',
+      patterns: [
+        /\b(buy|purchase|order|price of|how much (?:is|does|do)|cost of|subscribe|sign up|download|get a)\b/i,
+        /\b(coupon|discount|deal|cheapest|best price)\b/i,
+      ],
+    },
+    {
+      label: 'Local',
+      tone: 'likely',
+      description: 'Location-scoped question ("near me", city-specific).',
+      patterns: [
+        /\bnear\s+me\b/i,
+        /\bin\s+(?:my\s+)?(?:area|city|neighborhood|town)\b/i,
+        /\b(?:closest|nearest)\s+\w+/i,
+      ],
+    },
+    {
+      label: 'Navigational',
+      tone: 'likely',
+      description: 'Looking for a specific brand, site, or product page.',
+      patterns: [
+        /\b(official|login|sign in|homepage|website|\.com|\.org|\.io)\b/i,
+      ],
+    },
+    {
+      label: 'Recommendation',
+      tone: 'search',
+      description: 'Asking for a shortlist of options or best picks.',
+      patterns: [
+        /\b(best\s+\w+|top\s+\d+|recommend|suggestions?|picks?|which\s+should\s+i)\b/i,
+      ],
+    },
+  ];
+
+  function classifyPromptIntent(prompt) {
+    const text = sanitizeString(prompt, 2000);
+    if (!text) return null;
+    for (const rule of INTENT_RULES) {
+      if (rule.patterns.some((re) => re.test(text))) {
+        return { label: rule.label, tone: rule.tone, description: rule.description };
+      }
+    }
+    return { label: 'General', tone: 'training', description: 'No specific intent keywords detected.' };
+  }
+
   function getSearchOrigin(explicitQueries, citedSources, utmCount, uniqueDomainCount) {
     if (explicitQueries > 0) return { label: 'Search detected', confidence: 'High', tone: 'search' };
     if (citedSources > 0 || utmCount > 0 || uniqueDomainCount >= 2) return { label: 'Search likely', confidence: 'Medium', tone: 'likely' };
@@ -672,6 +773,7 @@
     extractMessageText,
     scanForSourceItems,
     getSearchOrigin,
+    classifyPromptIntent,
     sortConversationPath,
     aggregateSourceItems,
     buildConversationTurns,
