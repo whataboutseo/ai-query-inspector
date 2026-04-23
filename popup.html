@@ -83,141 +83,180 @@
     </section>
 
     <section id="panelChatgpt" class="tab-panel" role="tabpanel" aria-labelledby="tabChatgpt" tabindex="0">
-      <!-- Consolidated "General information" card replaces four separate
-           metric cards (Model / Search origin / Prompt intent / UTM).
-           Pattern: label column on the left, value on the right, similar
-           to Backlinko's ChatGPT Query Fan-Out Tool. -->
-      <article class="card info-card">
-        <header class="info-head">
-          <h2><span class="info-head-icon" aria-hidden="true">📋</span>General information</h2>
-        </header>
-        <dl class="info-grid">
-          <dt>User prompt</dt>
-          <dd>
-            <span id="infoPromptText" class="info-value info-value--muted">No prompt detected yet.</span>
-          </dd>
-          <dt>Model</dt>
-          <dd>
-            <span id="modelBadge" class="model-badge muted">Unknown</span>
-          </dd>
-          <dt>Search origin</dt>
-          <dd>
-            <div class="info-value-stack">
-              <span id="searchOriginBadge" class="origin-badge muted">Unknown</span>
-              <span id="searchOriginConfidence" class="origin-confidence hidden"></span>
+      <!-- Stage 5.3 ChatGPT recipe: prompt-hero.with-cta → kpi-strip →
+           Fan-out tree → Citation strength → Captured sources → compare-cta.
+           Render logic in popup.js populates the IDs below. -->
+      <section class="prompt-hero with-cta">
+        <div class="prompt-left">
+          <div class="t-eyebrow" id="promptEyebrow">LAST PROMPT</div>
+          <div class="quote" id="promptQuote">Open a ChatGPT conversation to see it here.</div>
+          <div class="meta">
+            <span class="chip mono" id="modelBadge"><span class="dot" aria-hidden="true"></span><span id="modelBadgeText">Unknown</span></span>
+            <span class="chip" id="searchOriginBadge"><span id="searchOriginBadgeText">Unknown</span></span>
+            <span class="chip hidden" id="promptIntentBadge" title="Heuristic classification of the latest user prompt."><span id="promptIntentBadgeText">—</span></span>
+            <span class="sep" aria-hidden="true">·</span>
+            <span class="chip mono" id="promptCapturedAt">—</span>
+          </div>
+          <span id="searchOriginConfidence" class="visually-hidden"></span>
+          <span id="infoPromptText" class="visually-hidden">No prompt detected yet.</span>
+          <span id="latestPromptText" class="visually-hidden">No prompt detected yet.</span>
+        </div>
+        <aside class="prompt-cta">
+          <span class="t-eyebrow">COMPARE WITH GOOGLE</span>
+          <div class="cta-status"><span class="dot-pending" aria-hidden="true"></span><span id="promptCtaStatus">No SERP captured yet</span></div>
+          <div class="cta-headline">Unlock the overlap score</div>
+          <button id="openGoogleBtn" class="cta-btn" type="button" title="Open a Google search for the latest detected user prompt, and the full-page inspector in the same window.">
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.8"/><path d="m13.5 13.5 3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            Capture Google SERP
+          </button>
+        </aside>
+      </section>
+
+      <section class="kpi-strip">
+        <div class="kpi">
+          <div class="t-eyebrow">FAN-OUTS</div>
+          <div class="val"><span id="fanoutCount">0</span></div>
+          <div class="sublabel">Queries issued</div>
+        </div>
+        <div class="kpi">
+          <div class="t-eyebrow">CITED SOURCES</div>
+          <div class="val"><span id="sourceCount">0</span></div>
+          <div class="sublabel">Unique URLs cited</div>
+        </div>
+        <div class="kpi">
+          <div class="t-eyebrow">UNIQUE SITES</div>
+          <div class="val"><span id="siteCount">0</span></div>
+          <div class="sublabel">Distinct domains</div>
+        </div>
+        <div class="kpi">
+          <div class="t-eyebrow">RETRIEVAL INTENSITY</div>
+          <div class="val"><span id="retrievalIntensityValue" class="t-mono" style="font-size: var(--fs-display-xs);">0 / 0 / 0</span></div>
+          <div class="sublabel" id="retrievalIntensityMeta">Fan-outs / citations / sites</div>
+        </div>
+      </section>
+
+      <div class="section" data-collapse>
+        <div class="section-head">
+          <div class="title">
+            <span class="s-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><path d="M10 3v14M3 10h14M5.5 5.5l9 9M14.5 5.5l-9 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </span>
+            <div class="title-text">
+              <h3>Fan-out tree</h3>
+              <span class="sub">QUERIES BY CONVERSATION TURN</span>
             </div>
-          </dd>
-          <dt id="promptIntentLabel" class="hidden">Prompt intent</dt>
-          <dd class="hidden" id="promptIntentRow">
-            <span id="promptIntentBadge" class="origin-badge muted" title="Heuristic classification of the latest user prompt.">—</span>
-          </dd>
-        </dl>
-
-        <!-- Horizontal stats strip — replaces the 3 loose metric cards
-             (Fan-outs / Cited sources / Unique sites). -->
-        <div class="stats-strip">
-          <div class="stat">
-            <span id="fanoutCount" class="stat-value">0</span>
-            <span class="stat-label">Fan-outs</span>
+            <span class="count-pill" id="fanoutBadgeCount">0</span>
           </div>
-          <div class="stat">
-            <span id="sourceCount" class="stat-value">0</span>
-            <span class="stat-label">Cited sources</span>
-          </div>
-          <div class="stat">
-            <span id="siteCount" class="stat-value">0</span>
-            <span class="stat-label">Unique sites</span>
-          </div>
-          <div class="stat popup-hide" data-popup-secondary>
-            <span id="utmCoverage" class="stat-value stat-value--small">0 / 0</span>
-            <span class="stat-label">UTM coverage</span>
+          <div class="tools">
+            <button id="copyQueriesBtn" class="btn btn-outline" type="button" onclick="event.stopPropagation()">Copy</button>
+            <button id="exportChatgptCsvBtn" class="btn btn-outline" type="button" onclick="event.stopPropagation()">Full CSV</button>
+            <span class="chevron" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
           </div>
         </div>
-
-        <!-- Retained for full-page dashboard only; popup hides it. -->
-        <div class="intensity-row popup-hide" data-popup-secondary>
-          <span class="metric-label">Retrieval intensity</span>
-          <span id="retrievalIntensityValue" class="metric-subvalue">0 / 0 / 0</span>
-          <span id="retrievalIntensityMeta" class="metric-meta">Fan-outs / citations / sites</span>
+        <div class="section-body">
+          <div id="queryExpansionWrap" class="expansion-tree">No fan-out queries found in this conversation payload.</div>
+          <ol id="fanoutsList" class="query-list hidden"></ol>
+          <div id="fanoutsEmpty" class="visually-hidden">No fan-out queries found in this conversation payload.</div>
         </div>
-      </article>
+      </div>
 
-      <section class="card utility-card search-capture-card collapsible-section">
-        <div class="section-head compact">
-          <h2><span class="info-head-icon" aria-hidden="true">🌐</span>Google handoff</h2>
-          <button id="openGoogleBtn" class="ghost-btn" title="Opens a Google search for the latest detected user prompt, and the full-page inspector in the same window.">Open Google for prompt</button>
-        </div>
-      </section>
-
-      <!-- Query-expansion card (multi-turn tree). The prompt box that
-           used to live here has moved into the General information card
-           above; this card now focuses on the per-turn structure. -->
-      <section class="card" id="queryExpansionCard">
-        <details id="queryExpansionDetails" class="expansion-details" open>
-          <summary class="section-head summary-toggle" title="Click to collapse. Shows how the conversation's tool calls fanned out across turns.">
-            <h2><span class="info-head-icon" aria-hidden="true">🌲</span>Fan-out tree</h2>
-          </summary>
-          <!-- Hidden, kept only for back-compat with renderQueryExpansion. -->
-          <div id="latestPromptText" class="hidden">No prompt detected yet.</div>
-          <div id="queryExpansionWrap" class="expansion-tree empty-state">No fan-out queries found in this conversation payload.</div>
-        </details>
-      </section>
-
-      <section class="card">
+      <div class="section" data-collapse>
         <div class="section-head">
-          <h2><span class="info-head-icon" aria-hidden="true">🔍</span>Fan-out queries <span id="fanoutBadgeCount" class="count-badge">0</span></h2>
-          <div class="section-actions">
-            <button id="copyQueriesBtn" class="ghost-btn">Copy</button>
-            <button id="exportChatgptCsvBtn" class="ghost-btn">Full CSV</button>
+          <div class="title">
+            <span class="s-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><path d="M3 16V7M8 16V4M13 16v-7M18 16V9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </span>
+            <div class="title-text">
+              <h3>Citation strength</h3>
+              <span class="sub" id="citationStrengthSummary">HOW OFTEN EACH DOMAIN WAS CITED</span>
+            </div>
+          </div>
+          <div class="tools">
+            <span class="chevron" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
           </div>
         </div>
-        <div id="fanoutsEmpty" class="empty-state">No fan-out queries found in this conversation payload.</div>
-        <ol id="fanoutsList" class="query-list hidden"></ol>
-      </section>
-
-      <section class="card">
-        <div class="section-head">
-          <h2><span class="info-head-icon" aria-hidden="true">📊</span>Citation strength</h2>
-          <span id="citationStrengthSummary" class="section-summary hidden"></span>
+        <div class="section-body">
+          <div id="citationStrengthWrap" class="bars"></div>
+          <div class="legend">
+            <span class="swatch cited">Cited</span>
+            <span class="swatch considered">Considered</span>
+          </div>
+          <div id="citationStrengthEmpty" class="empty-state" hidden>No cited domains found.</div>
         </div>
-        <div id="citationStrengthEmpty" class="empty-state">No cited domains found.</div>
-        <div id="citationStrengthWrap" class="strength-wrap hidden"></div>
-      </section>
+      </div>
 
-      <section class="card">
+      <div class="section" data-collapse>
         <div class="section-head">
-          <h2><span class="info-head-icon" aria-hidden="true">🌐</span>Sites cited</h2>
-          <div class="section-actions">
-            <span id="sitesSummary" class="section-summary hidden"></span>
-            <button id="copySitesBtn" class="ghost-btn">Copy</button>
+          <div class="title">
+            <span class="s-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><path d="M4 5h12v2H4zM4 9h12v2H4zM4 13h8v2H4z" stroke="currentColor" stroke-width="1.6"/></svg>
+            </span>
+            <div class="title-text">
+              <h3>Captured sources</h3>
+              <span class="sub" id="sourcesSummary">ALL DOMAINS, URLS AND TITLES</span>
+            </div>
+          </div>
+          <div class="tools">
+            <button id="copySourcesBtn" class="btn btn-outline" type="button" onclick="event.stopPropagation()">Copy</button>
+            <span class="chevron" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="none"><path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
           </div>
         </div>
-        <div id="sitesEmpty" class="empty-state">No cited domains found.</div>
-        <div id="sitesWrap" class="site-chip-wrap hidden"></div>
-      </section>
+        <div class="section-body">
+          <div class="table-wrap">
+            <table class="src-table" aria-describedby="sourcesSummary">
+              <thead>
+                <tr>
+                  <th class="num">#</th>
+                  <th>Domain</th>
+                  <th>Title &amp; URL</th>
+                  <th>Type</th>
+                  <th class="num">Mentions</th>
+                </tr>
+              </thead>
+              <tbody id="sourcesWrap"></tbody>
+            </table>
+          </div>
+          <div id="sourcesEmpty" class="empty-state">No source items captured yet.</div>
+        </div>
+      </div>
 
+      <!-- Kept hidden for back-compat with renderers that still target
+           these IDs (sites chip cloud + turns). Data still lands here
+           for future export use until 5.5/5.6 reorganize it. -->
+      <div id="sitesWrap" class="visually-hidden"></div>
+      <div id="sitesEmpty" class="visually-hidden"></div>
+      <div id="sitesSummary" class="visually-hidden"></div>
+      <div id="turnsWrap" class="visually-hidden"></div>
+      <div id="turnsEmpty" class="visually-hidden"></div>
+      <div id="turnsSummary" class="visually-hidden"></div>
+      <div id="utmCoverage" class="visually-hidden"></div>
 
-      <section class="card collapsible-section">
-        <div class="section-head">
-          <h2><span class="info-head-icon" aria-hidden="true">💬</span>Conversation turns</h2>
-          <div class="section-actions">
-            <span id="turnsSummary" class="section-summary hidden"></span>
+      <section class="compare-cta" id="chatgptCompareCta" hidden>
+        <div class="compare-cta-inner">
+          <div class="compare-cta-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="compare-cta-copy">
+            <h3>Compare this conversation with the live <em>Google</em> SERP</h3>
+            <p>Opens the prompt on Google, auto-captures the ranked results, and shows overlap, precision, and missed citations on the Compare tab.</p>
+          </div>
+          <div class="compare-cta-actions">
+            <button id="openGoogleBtnBottom" class="btn btn-cta-primary" type="button">
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.8"/><path d="m13.5 13.5 3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              Capture Google SERP
+            </button>
+            <a class="compare-cta-secondary" id="jumpToCompareLink" href="#" onclick="return false;">
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 10h10M11 6l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Jump to Compare tab
+            </a>
           </div>
         </div>
-        <div id="turnsEmpty" class="empty-state">No separate prompts detected yet.</div>
-        <div id="turnsWrap" class="turns-wrap hidden"></div>
-      </section>
-
-      <section class="card">
-        <div class="section-head">
-          <h2><span class="info-head-icon" aria-hidden="true">📄</span>Captured sources</h2>
-          <div class="section-actions">
-            <span id="sourcesSummary" class="section-summary hidden"></span>
-            <button id="copySourcesBtn" class="ghost-btn">Copy</button>
-          </div>
-        </div>
-        <div id="sourcesEmpty" class="empty-state">No source items captured yet.</div>
-        <div id="sourcesWrap" class="result-wrap hidden"></div>
       </section>
     </section>
 

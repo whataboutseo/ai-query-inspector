@@ -73,8 +73,13 @@ const els = {
     history: document.getElementById('panelHistory')
   },
 
-  // ChatGPT
+  // ChatGPT (stage 5.3 prompt-hero + kpi-strip + sections)
+  promptEyebrow: document.getElementById('promptEyebrow'),
+  promptQuote: document.getElementById('promptQuote'),
+  promptCapturedAt: document.getElementById('promptCapturedAt'),
+  promptCtaStatus: document.getElementById('promptCtaStatus'),
   modelBadge: document.getElementById('modelBadge'),
+  modelBadgeText: document.getElementById('modelBadgeText'),
   fanoutCount: document.getElementById('fanoutCount'),
   sourceCount: document.getElementById('sourceCount'),
   siteCount: document.getElementById('siteCount'),
@@ -87,7 +92,9 @@ const els = {
   citationStrengthEmpty: document.getElementById('citationStrengthEmpty'),
   citationStrengthSummary: document.getElementById('citationStrengthSummary'),
   searchOriginBadge: document.getElementById('searchOriginBadge'),
+  searchOriginBadgeText: document.getElementById('searchOriginBadgeText'),
   promptIntentBadge: document.getElementById('promptIntentBadge'),
+  promptIntentBadgeText: document.getElementById('promptIntentBadgeText'),
   searchOriginConfidence: document.getElementById('searchOriginConfidence'),
   fanoutsList: document.getElementById('fanoutsList'),
   fanoutsEmpty: document.getElementById('fanoutsEmpty'),
@@ -105,6 +112,9 @@ const els = {
   copySourcesBtn: document.getElementById('copySourcesBtn'),
   exportChatgptCsvBtn: document.getElementById('exportChatgptCsvBtn'),
   openGoogleBtn: document.getElementById('openGoogleBtn'),
+  openGoogleBtnBottom: document.getElementById('openGoogleBtnBottom'),
+  chatgptCompareCta: document.getElementById('chatgptCompareCta'),
+  jumpToCompareLink: document.getElementById('jumpToCompareLink'),
 
   // Google
   googleQueryLabel: document.getElementById('googleQueryLabel'),
@@ -691,44 +701,40 @@ function renderQueryExpansion(data) {
 }
 
 function renderCitationStrength(data) {
+  // Design-system .bars chart: 3-column grid (domain | track | count)
+  // with accent-teal fill scaled to the row's count.
   const domainCounts = data?.domainCounts || [];
-  els.citationStrengthWrap.innerHTML = '';
-  els.citationStrengthEmpty.classList.toggle('hidden', domainCounts.length > 0);
-  els.citationStrengthWrap.classList.toggle('hidden', domainCounts.length === 0);
-  els.citationStrengthSummary.classList.toggle('hidden', domainCounts.length === 0);
-  if (!domainCounts.length) {
-    els.citationStrengthSummary.textContent = '';
-    return;
+  const wrap = els.citationStrengthWrap;
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (els.citationStrengthEmpty) els.citationStrengthEmpty.hidden = domainCounts.length > 0;
+  wrap.hidden = domainCounts.length === 0;
+  if (els.citationStrengthSummary) {
+    els.citationStrengthSummary.textContent = domainCounts.length
+      ? `${data.citedSources} CITATIONS · ${data.uniqueDomains.length} SITES`
+      : 'HOW OFTEN EACH DOMAIN WAS CITED';
   }
+  if (!domainCounts.length) return;
   const maxCount = Math.max(...domainCounts.map((item) => item.count), 1);
-  els.citationStrengthSummary.textContent = `${data.citedSources} total citations across ${data.uniqueDomains.length} sites`;
   domainCounts.forEach(({ domain, count }) => {
-    const row = document.createElement('div');
-    row.className = 'strength-row';
-
-    const top = document.createElement('div');
-    top.className = 'strength-top';
-
-    const name = document.createElement('div');
-    name.className = 'strength-domain';
-    name.textContent = domain;
-
-    const pill = document.createElement('span');
-    pill.className = 'site-count';
-    pill.textContent = `${count} ${count === 1 ? 'citation' : 'citations'}`;
+    const dom = document.createElement('div');
+    dom.className = 'row-domain';
+    dom.textContent = domain;
 
     const track = document.createElement('div');
-    track.className = 'strength-bar-track';
+    track.className = 'row-track';
     const fill = document.createElement('div');
-    fill.className = 'strength-bar-fill';
+    fill.className = 'row-fill';
     fill.style.width = `${Math.max(8, Math.round((count / maxCount) * 100))}%`;
     track.appendChild(fill);
 
-    top.appendChild(name);
-    top.appendChild(pill);
-    row.appendChild(top);
-    row.appendChild(track);
-    els.citationStrengthWrap.appendChild(row);
+    const countEl = document.createElement('div');
+    countEl.className = 'row-count';
+    countEl.textContent = String(count);
+
+    wrap.appendChild(dom);
+    wrap.appendChild(track);
+    wrap.appendChild(countEl);
   });
 }
 
@@ -949,56 +955,89 @@ async function handleClearGoogleArchive() {
 
 // --- end history / retention helpers --------------------------------------
 
+function formatRelativeCapturedAt(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return 'captured just now';
+  if (mins < 60) return `captured ${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `captured ${hrs}h ago`;
+  return `captured ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
+}
+
 function renderChatgpt(data) {
-  // Info-card: user prompt row (moved here from the old Query expansion
-  // card, which was duplicating the same text).
+  // Prompt-hero (stage 5.3): quote + model chip + origin chip + intent
+  // chip + captured-at chip. Legacy #infoPromptText / #latestPromptText
+  // are kept as visually-hidden mirrors for renderers that still read
+  // the DOM for the prompt text.
+  const prompt = data?.latestUserPrompt || '';
+  if (els.promptQuote) {
+    els.promptQuote.textContent = prompt || 'Open a ChatGPT conversation to see it here.';
+    els.promptQuote.classList.toggle('empty', !prompt);
+  }
+  if (els.promptEyebrow) {
+    const title = sanitizeString(data?.title || '', 80);
+    const turns = Array.isArray(data?.conversationTurns) ? data.conversationTurns.length : 0;
+    const turnLabel = turns > 1 ? `TURN ${turns} OF ${turns}` : turns === 1 ? 'TURN 1' : '';
+    els.promptEyebrow.textContent = [title ? `CHAT · ${title.toUpperCase()}` : 'LAST PROMPT', turnLabel].filter(Boolean).join(' · ');
+  }
   const infoPrompt = document.getElementById('infoPromptText');
-  if (infoPrompt) {
-    const p = data?.latestUserPrompt || '';
-    if (p) {
-      infoPrompt.textContent = p;
-      infoPrompt.classList.remove('info-value--muted');
-    } else {
-      infoPrompt.textContent = 'No prompt detected yet.';
-      infoPrompt.classList.add('info-value--muted');
-    }
+  if (infoPrompt) infoPrompt.textContent = prompt || 'No prompt detected yet.';
+  if (els.latestPromptText) els.latestPromptText.textContent = prompt || 'No prompt detected yet.';
+
+  // Captured-at chip in the prompt-hero meta row.
+  if (els.promptCapturedAt) {
+    els.promptCapturedAt.textContent = formatRelativeCapturedAt(data?.capturedAt);
   }
 
-  els.modelBadge.textContent = data?.model || 'Unknown';
-  els.modelBadge.classList.toggle('muted', !data?.model);
+  // Model chip — inner text in #modelBadgeText, chip dot toggles with
+  // whether we actually have a model value.
+  if (els.modelBadgeText) els.modelBadgeText.textContent = data?.model || 'Unknown';
+  if (els.modelBadge) els.modelBadge.classList.toggle('muted', !data?.model);
+
+  // KPI strip.
   els.fanoutCount.textContent = String(data?.queries?.length || 0);
   els.sourceCount.textContent = String(data?.citedSources || 0);
   els.siteCount.textContent = String(data?.uniqueDomains?.length || 0);
-  els.utmCoverage.textContent = `${data?.utmCount || 0} / ${data?.totalUrls || 0}`;
+  if (els.utmCoverage) els.utmCoverage.textContent = `${data?.utmCount || 0} / ${data?.totalUrls || 0}`;
   els.retrievalIntensityValue.textContent = `${data?.queries?.length || 0} / ${data?.citedSources || 0} / ${data?.uniqueDomains?.length || 0}`;
   els.retrievalIntensityMeta.textContent = 'Fan-outs / citations / sites';
 
-  // Fan-out count badge in the "Fan-out queries" section title.
+  // Fan-out section count pill.
   const fanoutBadge = document.getElementById('fanoutBadgeCount');
   if (fanoutBadge) fanoutBadge.textContent = String(data?.queries?.length || 0);
 
-  const origin = data?.searchOrigin || { label: 'Unknown', confidence: '', tone: 'muted' };
-  els.searchOriginBadge.textContent = origin.label;
-  els.searchOriginBadge.className = `origin-badge ${origin.tone || 'muted'}`;
-  els.searchOriginConfidence.textContent = origin.confidence ? `${origin.confidence} confidence` : '';
-  els.searchOriginConfidence.classList.toggle('hidden', !origin.confidence);
+  // Prompt-cta inline status + bottom compare-cta visibility.
+  const hasGoogle = !!lastGoogleData?.resultCount;
+  if (els.promptCtaStatus) {
+    els.promptCtaStatus.textContent = hasGoogle
+      ? `SERP captured · ${lastGoogleData.resultCount} results`
+      : 'No SERP captured yet';
+  }
+  if (els.chatgptCompareCta) {
+    // Show the bottom CTA once a prompt exists, regardless of whether
+    // the SERP is already captured — it's the bridge to the Compare tab.
+    els.chatgptCompareCta.hidden = !prompt;
+  }
 
-  // Prompt intent classification (stage 3.3). Show the dt label and dd
-  // value together; hide both when no prompt has been captured yet so
-  // the info-grid doesn't render a dangling label.
+  // Search origin chip.
+  const origin = data?.searchOrigin || { label: 'Unknown', confidence: '', tone: 'muted' };
+  if (els.searchOriginBadgeText) els.searchOriginBadgeText.textContent = origin.label;
+  if (els.searchOriginBadge) els.searchOriginBadge.classList.toggle('mono', false);
+  if (els.searchOriginConfidence) els.searchOriginConfidence.textContent = origin.confidence ? `${origin.confidence} confidence` : '';
+
+  // Prompt intent chip — shown only when classifier returned a bucket.
   if (els.promptIntentBadge) {
-    const intent = self.AIQIShared.classifyPromptIntent(data?.latestUserPrompt || '');
-    const intentLabel = document.getElementById('promptIntentLabel');
-    const intentRow = document.getElementById('promptIntentRow');
+    const intent = self.AIQIShared.classifyPromptIntent(prompt);
     if (intent) {
-      els.promptIntentBadge.textContent = intent.label;
-      els.promptIntentBadge.className = `origin-badge ${intent.tone || 'muted'}`;
+      if (els.promptIntentBadgeText) els.promptIntentBadgeText.textContent = `Intent · ${intent.label}`;
+      els.promptIntentBadge.classList.remove('hidden');
       els.promptIntentBadge.title = intent.description;
-      if (intentLabel) intentLabel.classList.remove('hidden');
-      if (intentRow) intentRow.classList.remove('hidden');
     } else {
-      if (intentLabel) intentLabel.classList.add('hidden');
-      if (intentRow) intentRow.classList.add('hidden');
+      els.promptIntentBadge.classList.add('hidden');
     }
   }
 
@@ -1152,42 +1191,67 @@ function renderConversationTurns(data) {
 
 function renderSources(data) {
   const sources = data?.sources || [];
-  els.sourcesWrap.innerHTML = '';
-  els.sourcesEmpty.classList.toggle('hidden', sources.length > 0);
-  els.sourcesWrap.classList.toggle('hidden', sources.length === 0);
-  els.sourcesSummary.classList.toggle('hidden', sources.length === 0);
-  els.sourcesSummary.textContent = sources.length ? `${sources.length} unique source links captured` : '';
+  const tbody = els.sourcesWrap;
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  const empty = els.sourcesEmpty;
+  const summary = els.sourcesSummary;
+  // Hide/show the empty-state + the <tbody> parent table wrapper.
+  const tableWrap = tbody.closest('.table-wrap');
+  if (empty) empty.hidden = sources.length > 0;
+  if (tableWrap) tableWrap.hidden = sources.length === 0;
+  if (summary) summary.textContent = sources.length
+    ? `${sources.length} UNIQUE SOURCE LINKS CAPTURED`
+    : 'ALL DOMAINS, URLS AND TITLES';
 
-  sources.forEach((item) => {
-    const row = document.createElement('div');
-    row.className = 'result-row';
-    const top = document.createElement('div');
-    top.className = 'result-top';
-    const domain = document.createElement('span');
-    domain.className = 'domain-tag';
-    domain.textContent = item.domain || 'source';
-    const count = document.createElement('span');
-    count.className = 'site-count';
-    count.textContent = `${item.count} ${item.count === 1 ? 'mention' : 'mentions'}`;
-    const status = document.createElement('span');
-    status.className = `source-status ${item.status === 'considered' ? 'considered' : 'cited'}`;
-    status.textContent = item.statusLabel || (item.status === 'considered' ? 'Considered source' : 'Cited source');
-    top.appendChild(domain);
-    top.appendChild(status);
-    top.appendChild(count);
+  sources.forEach((item, idx) => {
+    const tr = document.createElement('tr');
 
-    const title = document.createElement('div');
-    title.className = 'result-title';
-    title.textContent = item.title || item.url;
+    const rank = document.createElement('td');
+    rank.className = 'rank';
+    rank.textContent = String(idx + 1).padStart(2, '0');
 
-    const url = document.createElement('div');
-    url.className = 'result-url';
-    url.textContent = item.url;
+    const domainCell = document.createElement('td');
+    const domainWrap = document.createElement('div');
+    domainWrap.className = 'domain-cell';
+    const fav = document.createElement('span');
+    fav.className = 'fav';
+    fav.setAttribute('aria-hidden', 'true');
+    const domainText = document.createElement('span');
+    domainText.className = 'domain';
+    domainText.textContent = item.domain || 'source';
+    domainWrap.appendChild(fav);
+    domainWrap.appendChild(domainText);
+    domainCell.appendChild(domainWrap);
 
-    row.appendChild(top);
-    row.appendChild(title);
-    row.appendChild(url);
-    els.sourcesWrap.appendChild(row);
+    const titleCell = document.createElement('td');
+    const titleWrap = document.createElement('div');
+    titleWrap.className = 'title';
+    titleWrap.textContent = item.title || item.url || '';
+    const urlSub = document.createElement('span');
+    urlSub.className = 'sub';
+    urlSub.textContent = item.url || '';
+    titleWrap.appendChild(urlSub);
+    titleCell.appendChild(titleWrap);
+
+    const typeCell = document.createElement('td');
+    typeCell.className = 'type-cell';
+    const typePill = document.createElement('span');
+    const isCited = item.status !== 'considered' && (item.citedCount || 0) > 0;
+    typePill.className = `type ${isCited ? 'type-cited' : 'type-considered'}`;
+    typePill.textContent = isCited ? 'CITED' : 'CONSIDERED';
+    typeCell.appendChild(typePill);
+
+    const countCell = document.createElement('td');
+    countCell.className = 'count-cell';
+    countCell.textContent = String(item.count || 0);
+
+    tr.appendChild(rank);
+    tr.appendChild(domainCell);
+    tr.appendChild(titleCell);
+    tr.appendChild(typeCell);
+    tr.appendChild(countCell);
+    tbody.appendChild(tr);
   });
 }
 
@@ -2238,6 +2302,29 @@ function bindEvents() {
     const query = lastChatgptData?.latestUserPrompt || lastChatgptData?.queries?.[0]?.q;
     await openGoogleForQuery(query);
   });
+  if (els.openGoogleBtnBottom) {
+    els.openGoogleBtnBottom.addEventListener('click', async () => {
+      const query = lastChatgptData?.latestUserPrompt || lastChatgptData?.queries?.[0]?.q;
+      await openGoogleForQuery(query);
+    });
+  }
+  if (els.jumpToCompareLink) {
+    els.jumpToCompareLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      switchTab('combined');
+    });
+  }
+  // Stage 5.3 design-system section collapse. Click on .section-head
+  // toggles .collapsed on the parent .section — except when the click
+  // originates inside a <button> (onclick="event.stopPropagation()" on
+  // those is not strictly required thanks to this .closest check, but
+  // we keep it as a safety net per the design-system doc).
+  document.querySelectorAll('.section[data-collapse] .section-head').forEach((head) => {
+    head.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      head.parentElement.classList.toggle('collapsed');
+    });
+  });
   els.openGoogleManualBtn.addEventListener('click', async () => {
     const manual = await openPromptModal({
       title: 'Open a manual search',
@@ -2253,10 +2340,12 @@ function bindEvents() {
     if (!lastChatgptData?.queries?.length) return setStatus('There are no fan-out queries to copy.', 'error');
     await copyText(lastChatgptData.queries.map((q, i) => `${i + 1}. ${q.q}${q.domains.length ? ` [${q.domains.join(', ')}]` : ''}`).join('\n'), 'Fan-out queries copied to system clipboard.');
   });
-  els.copySitesBtn.addEventListener('click', async () => {
-    if (!lastChatgptData?.domainCounts?.length) return setStatus('There are no cited sites to copy.', 'error');
-    await copyText(lastChatgptData.domainCounts.map(({ domain, count }) => `${domain} (${count})`).join('\n'), 'Sites copied to system clipboard.');
-  });
+  if (els.copySitesBtn) {
+    els.copySitesBtn.addEventListener('click', async () => {
+      if (!lastChatgptData?.domainCounts?.length) return setStatus('There are no cited sites to copy.', 'error');
+      await copyText(lastChatgptData.domainCounts.map(({ domain, count }) => `${domain} (${count})`).join('\n'), 'Sites copied to system clipboard.');
+    });
+  }
   els.copySourcesBtn.addEventListener('click', async () => {
     if (!lastChatgptData?.sources?.length) return setStatus('There are no captured source links to copy.', 'error');
     await copyText(lastChatgptData.sources.map((s) => `${s.domain || 'source'} | ${s.title || s.url} | ${s.url} | ${s.count}`).join('\n'), 'Source links copied to system clipboard.');
