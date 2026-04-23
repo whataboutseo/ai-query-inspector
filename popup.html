@@ -260,73 +260,132 @@
       </section>
     </section>
 
-    <section id="panelGoogle" class="tab-panel hidden google-layout" role="tabpanel" aria-labelledby="tabGoogle" tabindex="0">
-      <section class="summary-grid">
-        <article class="card metric-card">
-          <span class="metric-label">Query</span>
-          <div id="googleQueryLabel" class="metric-subvalue smallish">None</div>
-        </article>
-        <article class="card metric-card">
-          <span class="metric-label">Organic results</span>
-          <div id="googleResultCount" class="metric-value">0</div>
-        </article>
-        <article class="card metric-card">
-          <span class="metric-label">Unique sites</span>
-          <div id="googleSiteCount" class="metric-value">0</div>
-        </article>
-        <article class="card metric-card">
-          <span class="metric-label">Captured from</span>
-          <div id="googleCaptureMode" class="metric-subvalue smallish">Local page</div>
-        </article>
-        <article class="card metric-card">
-          <span class="metric-label">Engine</span>
-          <div id="googleEngineLabel" class="metric-subvalue smallish">Unknown</div>
-        </article>
-        <article class="card metric-card">
-          <span class="metric-label">SERP features</span>
-          <div id="googleFeatureCount" class="metric-subvalue smallish">0</div>
-        </article>
-      </section>
-
-      <section class="card utility-card search-capture-card">
-        <div class="section-head compact">
-          <h2><span class="info-head-icon" aria-hidden="true">🔎</span>Search capture</h2>
-          <button id="openGoogleManualBtn" class="ghost-btn">Open manual search</button>
-        </div>
-        <p class="small-note">Mode A reads the currently open Google, Bing, or DuckDuckGo results page on your device. It does not call a search API or send data anywhere.</p>
-      </section>
-
-      <section class="card serp-features-card collapsible-section">
-        <div class="section-head">
-          <h2><span class="info-head-icon" aria-hidden="true">✨</span>SERP features</h2>
-          <span id="googleFeaturesSummary" class="section-summary hidden"></span>
-        </div>
-        <div id="googleFeaturesEmpty" class="empty-state">No SERP features detected yet.</div>
-        <div id="googleFeaturesWrap" class="feature-chip-wrap hidden"></div>
-      </section>
-
-      <section class="card sites-found-card collapsible-section">
-        <div class="section-head">
-          <h2><span class="info-head-icon" aria-hidden="true">🌐</span>Sites found</h2>
-          <div class="section-actions">
-            <span id="googleSitesSummary" class="section-summary hidden"></span>
+    <section id="panelGoogle" class="tab-panel hidden" role="tabpanel" aria-labelledby="tabGoogle" tabindex="0">
+      <!-- Stage 5.4 Google recipe — two states:
+           1. empty (#googleEmptyState): hero + preview cards, shown when
+              no SERP has been captured yet.
+           2. captured (#googleCapturedState): prompt-hero + kpi-strip +
+              serp-layout (main results + aside features/sites). -->
+      <section class="google-empty" id="googleEmptyState">
+        <div class="google-empty-inner">
+          <div class="google-empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div class="google-empty-copy">
+            <h2>Capture a live Google SERP to compare with ChatGPT</h2>
+            <p>Run the latest prompt against Google, Bing, or DuckDuckGo on this device. The extension reads the ranked results locally — <em>nothing is sent off-device</em>.</p>
+          </div>
+          <div class="google-empty-actions">
+            <button id="openGoogleManualBtn" class="btn btn-cta-primary" type="button">
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.8"/><path d="m13.5 13.5 3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              Capture Google SERP
+            </button>
+            <span class="google-empty-hint">or open a search tab, then click Refresh</span>
           </div>
         </div>
-        <div id="googleSitesEmpty" class="empty-state">No search sites captured yet.</div>
-        <div id="googleSitesWrap" class="site-chip-wrap hidden"></div>
-      </section>
-
-      <section class="card organic-results-card collapsible-section">
-        <div class="section-head">
-          <h2><span class="info-head-icon" aria-hidden="true">📑</span>Search results</h2>
-          <div class="section-actions">
-            <button id="copyGoogleBtn" class="ghost-btn">Copy</button>
-            <button id="exportGoogleCsvBtn" class="ghost-btn">SERP snapshot CSV</button>
+        <div class="google-empty-preview">
+          <div class="preview-card">
+            <div class="pc-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="M4 5h12v2H4zM4 9h12v2H4zM4 13h8v2H4z" stroke="currentColor" stroke-width="1.6"/></svg></div>
+            <h4>Ranked organic results</h4>
+            <p>Every top-10 result with favicon, title, URL, and snippet.</p>
+            <div class="placeholder-line"></div>
+            <div class="placeholder-line"></div>
+            <div class="placeholder-line"></div>
+          </div>
+          <div class="preview-card">
+            <div class="pc-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="M3 12v5h5M17 8V3h-5M8 3H3v5M12 17h5v-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h4>SERP features detected</h4>
+            <p>AI Overview, featured snippets, People Also Ask, Top Stories.</p>
+            <div class="placeholder-line"></div>
+            <div class="placeholder-line"></div>
+          </div>
+          <div class="preview-card">
+            <div class="pc-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="6.5" stroke="currentColor" stroke-width="1.6"/><path d="M10 6v4l2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h4>Cross-reference with ChatGPT</h4>
+            <p>Overlap, precision, recall, and Jaccard on the Compare tab.</p>
+            <div class="placeholder-line"></div>
+            <div class="placeholder-line"></div>
           </div>
         </div>
-        <div id="googleEmpty" class="empty-state">No search results captured yet. Open a Google, Bing, or DuckDuckGo results tab and the extension will capture locally.</div>
-        <div id="googleResultsWrap" class="result-wrap hidden"></div>
       </section>
+
+      <div id="googleCapturedState" hidden>
+        <section class="prompt-hero">
+          <div class="prompt-left">
+            <div class="t-eyebrow" id="googlePromptEyebrow">SERP QUERY</div>
+            <div class="quote" id="googleQueryLabel">—</div>
+            <div class="meta">
+              <span class="chip mono" id="googleEngineChip"><span class="dot" aria-hidden="true"></span><span id="googleEngineLabel">Unknown</span></span>
+              <span class="chip" id="googleCaptureModeChip"><span id="googleCaptureMode">Local page</span></span>
+              <span class="sep" aria-hidden="true">·</span>
+              <span class="chip mono" id="googleCapturedAt">—</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="kpi-strip">
+          <div class="kpi">
+            <div class="t-eyebrow">ORGANIC RESULTS</div>
+            <div class="val"><span id="googleResultCount">0</span></div>
+            <div class="sublabel">Top-10 captured</div>
+          </div>
+          <div class="kpi">
+            <div class="t-eyebrow">UNIQUE SITES</div>
+            <div class="val"><span id="googleSiteCount">0</span></div>
+            <div class="sublabel">Distinct domains</div>
+          </div>
+          <div class="kpi">
+            <div class="t-eyebrow">SERP FEATURES</div>
+            <div class="val"><span id="googleFeatureCount">0</span></div>
+            <div class="sublabel">Detected on page</div>
+          </div>
+          <div class="kpi">
+            <div class="t-eyebrow">ENGINE</div>
+            <div class="val"><span id="googleEngineKpi" class="t-mono" style="font-size: var(--fs-display-xs);">—</span></div>
+            <div class="sublabel" id="googleEngineKpiSub">Source</div>
+          </div>
+        </section>
+
+        <div class="section" data-collapse>
+          <div class="section-head">
+            <div class="title">
+              <span class="s-icon" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="none"><path d="M4 5h12v2H4zM4 9h12v2H4zM4 13h8v2H4z" stroke="currentColor" stroke-width="1.6"/></svg>
+              </span>
+              <div class="title-text">
+                <h3>Top results</h3>
+                <span class="sub" id="googleSitesSummary">RANKED ORGANIC RESULTS</span>
+              </div>
+            </div>
+            <div class="tools">
+              <button id="copyGoogleBtn" class="btn btn-outline" type="button" onclick="event.stopPropagation()">Copy</button>
+              <button id="exportGoogleCsvBtn" class="btn btn-outline" type="button" onclick="event.stopPropagation()">CSV</button>
+              <span class="chevron" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="none"><path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="serp-layout">
+              <div id="googleResultsWrap"></div>
+              <aside class="serp-aside">
+                <div class="aside-card">
+                  <div class="t-eyebrow" style="margin-bottom: 10px;">SERP FEATURES</div>
+                  <div id="googleFeaturesEmpty" class="t-meta" hidden>No features detected.</div>
+                  <div id="googleFeaturesWrap" class="feature-list"></div>
+                  <span id="googleFeaturesSummary" class="visually-hidden"></span>
+                </div>
+                <div class="aside-card">
+                  <div class="t-eyebrow" style="margin-bottom: 10px;">TOP SITES</div>
+                  <div id="googleSitesEmpty" class="t-meta" hidden>No sites captured.</div>
+                  <div id="googleSitesWrap" class="feature-list"></div>
+                </div>
+              </aside>
+            </div>
+            <div id="googleEmpty" class="empty-state" hidden>No search results captured yet.</div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section id="panelCombined" class="tab-panel hidden combined-layout" role="tabpanel" aria-labelledby="tabCombined" tabindex="0">

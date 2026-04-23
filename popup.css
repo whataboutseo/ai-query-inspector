@@ -1147,16 +1147,6 @@ body.full-page .comparison-title {
    column, and the Combined 8+4 split collapses to full-width rows.
    Summary-grid metric cards rebalance to a 2x denser layout. */
 @media (max-width: 1500px) {
-  body.full-page .google-layout {
-    grid-template-columns: 1fr;
-  }
-  body.full-page .google-layout .serp-features-card,
-  body.full-page .google-layout .sites-found-card,
-  body.full-page .google-layout .organic-results-card {
-    grid-column: 1 / -1;
-    max-height: none;
-    overflow: visible;
-  }
   body.full-page .combined-layout .comparison-card,
   body.full-page .combined-layout .missed-card {
     grid-column: span 12;
@@ -1206,52 +1196,8 @@ body.full-page .comparison-title {
    3-column grid with explicit minmax widths so feature-chips /
    sites-found / organic-results cards have sensible proportions. Under
    1500px collapses to a single column (see media query below). */
-body.full-page .google-layout {
-  display: grid;
-  grid-template-columns: minmax(260px, 1.1fr) minmax(320px, 1.35fr) minmax(420px, 1.9fr);
-  gap: 16px;
-  align-items: start;
-  align-content: start;
-}
-body.full-page .google-layout .summary-grid,
-body.full-page .google-layout .search-capture-card {
-  grid-column: 1 / -1;
-}
-body.full-page .google-layout .serp-features-card {
-  grid-column: 1;
-  max-height: none;
-  overflow: visible;
-}
-body.full-page .google-layout .sites-found-card {
-  grid-column: 2;
-  max-height: calc(100vh - 240px);
-  overflow: auto;
-}
-body.full-page .google-layout .organic-results-card {
-  grid-column: 3;
-  max-height: calc(100vh - 240px);
-  overflow: auto;
-  align-self: start;
-}
-body.full-page .google-layout .organic-results-card #googleResultsWrap {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
-body.full-page .google-layout .organic-results-card .result-card {
-  min-height: 132px;
-}
-body.full-page .google-layout .sites-found-card #googleSitesWrap {
-  grid-template-columns: 1fr;
-}
-body.full-page .google-layout .serp-features-card .feature-chip-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-body.full-page .google-layout .serp-features-card .empty-state {
-  min-height: 48px;
-}
+/* Stage 5.4: legacy .google-layout 3-column grid removed — design-
+   system .serp-layout handles the captured-state main+aside split. */
 
 /* --- History tab ----------------------------------------------------------
    Single-column outer, sub-grid of auto-fit history cards. */

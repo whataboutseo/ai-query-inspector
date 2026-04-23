@@ -1256,13 +1256,31 @@ function renderSources(data) {
 }
 
 function renderGoogle(data) {
-  els.googleQueryLabel.textContent = data?.query || 'None';
-  els.googleResultCount.textContent = String(data?.resultCount || 0);
-  els.googleSiteCount.textContent = String(data?.uniqueDomains?.length || 0);
-  els.googleCaptureMode.textContent = data?.captureMode || 'Local page';
-  els.googleEngineLabel.textContent = data?.engineLabel || 'Unknown';
-  els.googleFeatureCount.textContent = String(data?.serpFeatures?.length || 0);
+  // Stage 5.4: two-state panel. If no SERP yet, show the empty-state
+  // hero + preview cards; else render the prompt-hero + kpi-strip +
+  // serp-layout with ranked results and the aside cards.
+  const emptyState = document.getElementById('googleEmptyState');
+  const capturedState = document.getElementById('googleCapturedState');
+  const hasCapture = !!data?.resultCount;
+  if (emptyState) emptyState.hidden = hasCapture;
+  if (capturedState) capturedState.hidden = !hasCapture;
+  if (!hasCapture) return;
 
+  // Prompt-hero: SERP query as the quote.
+  if (els.googleQueryLabel) els.googleQueryLabel.textContent = data?.query || '—';
+  const capturedAtChip = document.getElementById('googleCapturedAt');
+  if (capturedAtChip) capturedAtChip.textContent = formatRelativeCapturedAt(data?.capturedAt);
+  if (els.googleEngineLabel) els.googleEngineLabel.textContent = data?.engineLabel || 'Unknown';
+  if (els.googleCaptureMode) els.googleCaptureMode.textContent = data?.captureMode || 'Local page';
+
+  // KPI strip.
+  if (els.googleResultCount) els.googleResultCount.textContent = String(data?.resultCount || 0);
+  if (els.googleSiteCount) els.googleSiteCount.textContent = String(data?.uniqueDomains?.length || 0);
+  if (els.googleFeatureCount) els.googleFeatureCount.textContent = String(data?.serpFeatures?.length || 0);
+  const engineKpi = document.getElementById('googleEngineKpi');
+  if (engineKpi) engineKpi.textContent = data?.engineLabel || '—';
+
+  // Aside: sites found (domain frequency).
   const domainCounts = (data?.results || []).reduce((acc, item) => {
     acc[item.domain] = (acc[item.domain] || 0) + 1;
     return acc;
@@ -1270,78 +1288,114 @@ function renderGoogle(data) {
   const siteRows = Object.entries(domainCounts)
     .map(([domain, count]) => ({ domain, count }))
     .sort((a, b) => b.count - a.count || a.domain.localeCompare(b.domain));
-  els.googleSitesWrap.innerHTML = '';
-  els.googleSitesEmpty.classList.toggle('hidden', siteRows.length > 0);
-  els.googleSitesWrap.classList.toggle('hidden', siteRows.length === 0);
-  els.googleSitesSummary.classList.toggle('hidden', siteRows.length === 0);
-  els.googleSitesSummary.textContent = siteRows.length ? `${data?.resultCount || 0} results across ${data?.uniqueDomains?.length || 0} sites` : '';
-  siteRows.forEach(({ domain, count }) => {
-    const row = document.createElement('div');
-    row.className = 'site-row';
-    const name = document.createElement('div');
-    name.className = 'site-name';
-    name.textContent = domain;
-    const meta = document.createElement('div');
-    meta.className = 'site-meta';
-    const countPill = document.createElement('span');
-    countPill.className = 'site-count';
-    countPill.textContent = `${count} ${count === 1 ? 'result' : 'results'}`;
-    meta.appendChild(countPill);
-    row.appendChild(name);
-    row.appendChild(meta);
-    els.googleSitesWrap.appendChild(row);
-  });
+  const sitesWrap = els.googleSitesWrap;
+  const sitesEmpty = els.googleSitesEmpty;
+  if (sitesWrap) {
+    sitesWrap.innerHTML = '';
+    if (sitesEmpty) sitesEmpty.hidden = siteRows.length > 0;
+    siteRows.forEach(({ domain, count }) => {
+      const row = document.createElement('div');
+      row.className = 'f-item';
+      const k = document.createElement('span');
+      k.className = 'k';
+      k.textContent = domain;
+      const v = document.createElement('span');
+      v.className = 'v';
+      v.textContent = String(count);
+      row.appendChild(k);
+      row.appendChild(v);
+      sitesWrap.appendChild(row);
+    });
+  }
 
-  els.googleFeaturesWrap.innerHTML = '';
+  // Aside: SERP features detected.
+  const featuresWrap = els.googleFeaturesWrap;
+  const featuresEmpty = els.googleFeaturesEmpty;
   const features = data?.serpFeatures || [];
-  els.googleFeaturesEmpty.classList.toggle('hidden', features.length > 0);
-  els.googleFeaturesWrap.classList.toggle('hidden', features.length === 0);
-  els.googleFeaturesSummary.classList.toggle('hidden', features.length === 0);
-  els.googleFeaturesSummary.textContent = features.length ? `${features.length} detected on this ${data?.engineLabel || 'SERP'}` : '';
-  features.forEach((feature) => {
-    const chip = document.createElement('span');
-    chip.className = 'feature-chip';
-    chip.textContent = feature;
-    els.googleFeaturesWrap.appendChild(chip);
-  });
+  if (featuresWrap) {
+    featuresWrap.innerHTML = '';
+    if (featuresEmpty) featuresEmpty.hidden = features.length > 0;
+    features.forEach((feature) => {
+      const row = document.createElement('div');
+      row.className = 'f-item';
+      const k = document.createElement('span');
+      k.className = 'k';
+      k.textContent = feature;
+      const v = document.createElement('span');
+      v.className = 'v';
+      v.textContent = '✓';
+      row.appendChild(k);
+      row.appendChild(v);
+      featuresWrap.appendChild(row);
+    });
+  }
 
-  els.googleResultsWrap.innerHTML = '';
+  // Main column: ranked .serp-result rows. Flagged with .in-ai when
+  // the domain also shows up in the current ChatGPT citation set.
+  const resultsWrap = els.googleResultsWrap;
+  if (!resultsWrap) return;
+  resultsWrap.innerHTML = '';
   const results = data?.results || [];
-  els.googleEmpty.classList.toggle('hidden', results.length > 0);
-  els.googleResultsWrap.classList.toggle('hidden', results.length === 0);
+  if (els.googleEmpty) els.googleEmpty.hidden = results.length > 0;
+
+  const chatDomainFold = currentSettings?.matchByRegisteredDomain !== false
+    ? self.AIQIShared.registeredDomain
+    : self.AIQIShared.normalizeDomain;
+  const chatSet = new Set((lastChatgptData?.uniqueDomains || []).map((d) => chatDomainFold(d)).filter(Boolean));
 
   results.forEach((item) => {
     const row = document.createElement('div');
-    row.className = 'result-row';
+    row.className = 'serp-result';
 
-    const top = document.createElement('div');
-    top.className = 'result-top';
-    const rank = document.createElement('span');
-    rank.className = 'result-rank';
-    rank.textContent = `#${item.rank}`;
-    const domain = document.createElement('span');
-    domain.className = 'domain-tag';
-    domain.textContent = item.domain;
-    top.appendChild(rank);
-    top.appendChild(domain);
+    const rank = document.createElement('div');
+    rank.className = 'serp-rank';
+    rank.textContent = String(item.rank).padStart(2, '0');
 
-    const title = document.createElement('div');
-    title.className = 'result-title';
-    title.textContent = item.title;
+    const main = document.createElement('div');
+    const siteLine = document.createElement('div');
+    siteLine.className = 'site-line';
+    const fav = document.createElement('span');
+    fav.className = 'fav';
+    fav.setAttribute('aria-hidden', 'true');
+    const site = document.createElement('span');
+    site.className = 'site';
+    site.textContent = item.domain;
+    siteLine.appendChild(fav);
+    siteLine.appendChild(site);
+
+    const h = document.createElement('h4');
+    const link = document.createElement('a');
+    link.href = item.url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = item.title;
+    h.appendChild(link);
 
     const snippet = document.createElement('div');
-    snippet.className = 'result-snippet';
+    snippet.className = 'snippet';
     snippet.textContent = item.snippet || item.url;
 
-    const resultUrl = document.createElement('div');
-    resultUrl.className = 'result-url';
-    resultUrl.textContent = item.url;
+    const badges = document.createElement('div');
+    badges.className = 'badges';
+    const rankBadge = document.createElement('span');
+    rankBadge.className = 'badge';
+    rankBadge.textContent = `RANK ${item.rank}`;
+    badges.appendChild(rankBadge);
+    if (chatSet.has(chatDomainFold(item.domain))) {
+      const aiBadge = document.createElement('span');
+      aiBadge.className = 'badge in-ai';
+      aiBadge.textContent = 'Cited by ChatGPT';
+      badges.appendChild(aiBadge);
+    }
 
-    row.appendChild(top);
-    row.appendChild(title);
-    row.appendChild(snippet);
-    row.appendChild(resultUrl);
-    els.googleResultsWrap.appendChild(row);
+    main.appendChild(siteLine);
+    main.appendChild(h);
+    main.appendChild(snippet);
+    main.appendChild(badges);
+
+    row.appendChild(rank);
+    row.appendChild(main);
+    resultsWrap.appendChild(row);
   });
 }
 
