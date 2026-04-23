@@ -1598,22 +1598,57 @@ async function fetchSearchResultsInPage() {
       candidates.push({ title: safeTitle, url: safeHref, domain: safeDomain, snippet: safeSnippet });
     };
 
+    // Helper: pick the first organic-looking anchor (href starts with http,
+    // excludes the engine's own domain, and isn't a webcache/translate/image
+    // proxy) from within a container. Returns { anchor, h3 } or null.
+    const pickOrganicAnchor = (container, ownDomainPattern) => {
+      const h3 = container.querySelector('a h3');
+      if (!h3) return null;
+      const anchor = h3.closest('a');
+      if (!anchor) return null;
+      const href = anchor.href || '';
+      if (!href.startsWith('http')) return null;
+      let parsed;
+      try { parsed = new URL(href); } catch { return null; }
+      const domain = norm(parsed.hostname);
+      if (!domain || ownDomainPattern.test(domain)) return null;
+      // Skip Google's URL wrappers (already handled by href resolution) and
+      // non-result paths (maps, images, shopping product pages, etc.).
+      if (/^(webcache|translate|images|maps|shopping)\./i.test(domain)) return null;
+      return { anchor, h3, href, domain, parsed };
+    };
+
+    // Container-class tokens that indicate a SERP feature rather than an
+    // organic result. We match against a lowercased className string.
+    const nonOrganicClassTokens = [
+      'related-question-pair', 'ulsxyf', 'kno-kp', 'g-blk', 'knowledge-panel',
+      'kp-blk', 'knavi', 'carousel', 'mnr-c', 'commercial-unit', 'obcontainer'
+    ];
+    const hasNonOrganicClass = (el) => {
+      const cls = typeof el?.className === 'string' ? el.className.toLowerCase() : '';
+      if (!cls) return false;
+      return nonOrganicClassTokens.some((t) => cls.includes(t));
+    };
+
     if (/(^|\.)google\./i.test(host) && url.pathname.startsWith('/search')) {
       engine = 'google';
       query = clean(document.querySelector('textarea[name="q"], input[name="q"]')?.value || url.searchParams.get('q') || '', 300);
-      document.querySelectorAll('a h3').forEach((h3) => {
-        const anchor = h3.closest('a');
-        if (!anchor) return;
-        const href = anchor.href || '';
-        if (!href.startsWith('http')) return;
-        let parsed;
-        try { parsed = new URL(href); } catch { return; }
-        const domain = norm(parsed.hostname);
-        if (!domain || /google\./i.test(domain)) return;
-        const container = anchor.closest('div[data-ved]') || anchor.parentElement || anchor;
-        const snippet = clean((container?.innerText || '').replace(h3.textContent || '', ''), 420);
-        pushCandidate(h3.textContent || '', href, domain, snippet);
-      });
+      // Organic results live under #rso as direct-child containers. Iterating
+      // containers (rather than every `a h3` on the page) gives true organic
+      // rank and skips sitelinks, People-Also-Ask, knowledge panels, etc.
+      const rso = document.querySelector('#rso') || document.querySelector('#search');
+      if (rso) {
+        const containers = Array.from(rso.querySelectorAll(':scope > div'));
+        for (const container of containers) {
+          if (hasNonOrganicClass(container)) continue;
+          // Also skip if the container itself is or wraps a People-Also-Ask module.
+          if (container.querySelector('[jsname="Cpkphb"], [data-initq], .related-question-pair')) continue;
+          const picked = pickOrganicAnchor(container, /(^|\.)google\./i);
+          if (!picked) continue;
+          const snippet = clean((container.innerText || '').replace(picked.h3.textContent || '', ''), 420);
+          pushCandidate(picked.h3.textContent || '', picked.href, picked.domain, snippet);
+        }
+      }
       if (/ai overview|overview from ai/.test(bodyText) || document.querySelector('[data-attrid="title"]')) featureSet.add('AI Overview');
       if (/featured snippet/.test(bodyText) || document.querySelector('.hgKElc, .xpdopen .DKV0Md')) featureSet.add('Featured Snippet');
       if (/top stories/.test(bodyText)) featureSet.add('Top Stories');
@@ -1622,15 +1657,19 @@ async function fetchSearchResultsInPage() {
     } else if (/(^|\.)bing\.com$/i.test(host)) {
       engine = 'bing';
       query = clean(document.querySelector('textarea[name="q"], input[name="q"], #sb_form_q')?.value || url.searchParams.get('q') || '', 300);
-      document.querySelectorAll('li.b_algo h2 a').forEach((anchor) => {
+      // Bing organic results are in li.b_algo within #b_results. Iterate
+      // containers so rank is the organic list position, and take the first
+      // h2 > a per container (deep links live in .b_deep and are ignored).
+      document.querySelectorAll('#b_results > li.b_algo').forEach((container) => {
+        const anchor = container.querySelector('h2 a');
+        if (!anchor) return;
         const href = anchor.href || '';
         if (!href.startsWith('http')) return;
         let parsed;
         try { parsed = new URL(href); } catch { return; }
         const domain = norm(parsed.hostname);
         if (!domain || /bing\.com/i.test(domain)) return;
-        const container = anchor.closest('li.b_algo') || anchor.parentElement || anchor;
-        const snippet = clean(container?.querySelector('.b_caption p')?.innerText || container?.innerText || '', 420).replace(clean(anchor.textContent || '', 300), '');
+        const snippet = clean(container.querySelector('.b_caption p')?.innerText || container.innerText || '', 420).replace(clean(anchor.textContent || '', 300), '');
         pushCandidate(anchor.textContent || '', href, domain, snippet);
       });
       if (/ai answer|copilot answer/.test(bodyText)) featureSet.add('AI Answer');
@@ -1641,15 +1680,21 @@ async function fetchSearchResultsInPage() {
     } else if (host === 'duckduckgo.com' && (url.pathname.startsWith('/') || url.pathname.startsWith('/html'))) {
       engine = 'duckduckgo';
       query = clean(document.querySelector('input[name="q"], textarea[name="q"]')?.value || url.searchParams.get('q') || '', 300);
-      document.querySelectorAll('[data-testid="result"] h2 a, .result__title a').forEach((anchor) => {
+      // DDG organic results: [data-testid="result"] (modern) or .result:not(.result--ad) (lite).
+      const ddgContainers = document.querySelectorAll('[data-testid="result"], .result:not(.result--ad):not(.result--sidebar)');
+      ddgContainers.forEach((container) => {
+        // Skip containers that are clearly ads (belt-and-suspenders).
+        const cls = typeof container.className === 'string' ? container.className.toLowerCase() : '';
+        if (cls.includes('result--ad')) return;
+        const anchor = container.querySelector('h2 a, .result__title a');
+        if (!anchor) return;
         const href = anchor.href || '';
         if (!href.startsWith('http')) return;
         let parsed;
         try { parsed = new URL(href); } catch { return; }
         const domain = norm(parsed.hostname);
         if (!domain || /duckduckgo\.com/i.test(domain)) return;
-        const container = anchor.closest('[data-testid="result"]') || anchor.closest('.result') || anchor.parentElement || anchor;
-        const snippet = clean(container?.querySelector('[data-result="snippet"], .result__snippet')?.innerText || container?.innerText || '', 420).replace(clean(anchor.textContent || '', 300), '');
+        const snippet = clean(container.querySelector('[data-result="snippet"], .result__snippet')?.innerText || container.innerText || '', 420).replace(clean(anchor.textContent || '', 300), '');
         pushCandidate(anchor.textContent || '', href, domain, snippet);
       });
       if (/news/.test(bodyText)) featureSet.add('News Module');
