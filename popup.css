@@ -59,19 +59,6 @@ body.full-page #popupShell { display: none; }
   justify-content: flex-end;
   flex-shrink: 0;
 }
-.card {
-  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
-}
-.status-card {
-  background: linear-gradient(180deg, rgba(120,168,255,0.16), rgba(139,92,246,0.1));
-  padding: 10px 12px;
-  font-size: 12.5px;
-  line-height: 1.5;
-}
 
 /* =========================================================================
    INFO CARD  (Backlinko-style label:value grid)
@@ -82,236 +69,13 @@ body.full-page #popupShell { display: none; }
    strip (fan-outs / cited / sites) below the grid inside the same card
    so the eye doesn't have to jump between cards.
    ======================================================================== */
-.info-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.info-head {
-  margin: 0;
-  padding-bottom: 2px;
-}
-.info-head h2 {
-  margin: 0;
-  font-size: 13.5px;
-  font-weight: 800;
-  letter-spacing: -0.005em;
-}
 .info-head h2,
 .section-head h2 {
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
-.info-head-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  line-height: 1;
-  width: 20px;
-  flex-shrink: 0;
-  /* Emoji renders at weight:400 even inside h2; lock opacity so the
-     color tones of the page don't tint them oddly. */
-  filter: saturate(0.9);
-}
 
-.info-grid {
-  display: grid;
-  grid-template-columns: 140px 1fr;
-  gap: 8px 16px;
-  margin: 0;
-  align-items: center;
-}
-.info-grid dt {
-  color: var(--muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-.info-grid dd {
-  margin: 0;
-  min-width: 0;
-  font-size: 13px;
-  line-height: 1.45;
-  word-break: break-word;
-}
-.info-grid dd .origin-confidence { font-size: 11px; margin-top: 2px; }
-.info-value { font-weight: 600; }
-.info-value--muted { color: var(--muted); }
-.info-value-stack {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 2px;
-  align-items: flex-start;
-}
-
-/* =========================================================================
-   STATS STRIP  (horizontal row of numeric stats)
-   ---------
-   Replaces 3 loose metric cards with a single inline strip. Lives at
-   the bottom of the info-card so the numeric stats appear directly
-   below the contextual key:values.
-   ======================================================================== */
-.stats-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 0;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  background: rgba(255,255,255,0.02);
-}
-.stats-strip .stat {
-  padding: 10px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  border-right: 1px solid var(--border);
-}
-.stats-strip .stat:last-child { border-right: 0; }
-.stat-value {
-  font-size: 22px;
-  font-weight: 800;
-  line-height: 1.1;
-}
-.stat-value--small { font-size: 15px; }
-.stat-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  color: var(--muted);
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-.intensity-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: rgba(255,255,255,0.02);
-  font-size: 12.5px;
-}
-
-/* =========================================================================
-   COUNT BADGE  (inline "(4)" pill next to section titles)
-   ---------
-   Subtle circular badge that adds a count to a section title without
-   looking like a separate element. Mirrors Backlinko's "(4)" bubble.
-   ======================================================================== */
-.count-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 22px;
-  height: 20px;
-  padding: 0 7px;
-  margin-left: 2px;
-  border-radius: 999px;
-  background: rgba(40, 196, 143, 0.18);
-  border: 1px solid rgba(40, 196, 143, 0.34);
-  color: var(--green);
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
-}
-
-body.light-mode .info-grid dt { color: #3d4e86 !important; }
-body.light-mode .stats-strip {
-  background: rgba(13, 28, 74, 0.02) !important;
-  border-color: rgba(13, 28, 74, 0.12) !important;
-}
-body.light-mode .stats-strip .stat { border-right-color: rgba(13, 28, 74, 0.12) !important; }
-body.light-mode .stat-label { color: #3d4e86 !important; }
-body.light-mode .count-badge {
-  background: rgba(40, 196, 143, 0.15) !important;
-  border-color: rgba(40, 196, 143, 0.4) !important;
-  color: #1b7a58 !important;
-}
-/* Legacy grid kept for full-page dashboard where the old metric-card
-   layout still wins. Popup uses the info-card + stats-strip pattern
-   defined below. */
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-.metric-card {
-  min-height: 72px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  justify-content: space-between;
-  padding: 10px 12px;
-}
-.metric-label {
-  color: var(--muted);
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  font-weight: 700;
-}
-.metric-value {
-  font-size: 26px;
-  font-weight: 800;
-  line-height: 1;
-}
-.metric-subvalue {
-  font-size: 18px;
-  font-weight: 800;
-  line-height: 1.1;
-}
-/* Model card is a full-width label+badge row so the model name has
-   room to breathe. The badge itself is compact now — no more 22px
-   chip dominating the card. */
-.model-card {
-  grid-column: span 2;
-  min-height: 0;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-/* Search origin card spans full width and stacks two label+badge
-   rows (Origin, Prompt intent) plus an optional confidence sub-line. */
-.search-origin-card {
-  grid-column: span 2;
-  min-height: 0;
-  gap: 4px;
-}
-.origin-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.model-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(120,168,255,0.18), rgba(139,92,246,0.2));
-  border: 1px solid rgba(120,168,255,0.25);
-  font-size: 13px;
-  font-weight: 800;
-  width: fit-content;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.model-badge::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 6px rgba(40,196,143,.7);
-  flex-shrink: 0;
-}
 .model-badge.muted {
   background: rgba(255,255,255,0.04);
   border-color: var(--border);
@@ -601,19 +365,6 @@ body[data-active-view="history"] .capture-picker {
   font-weight: 800;
   letter-spacing: -0.005em;
 }
-.section-summary, .export-note {
-  color: var(--muted);
-  font-size: 11.5px;
-  font-weight: 700;
-}
-.export-head {
-  align-items: flex-start;
-}
-.export-head p {
-  margin: 6px 0 0;
-  max-width: 220px;
-  line-height: 1.4;
-}
 .query-list {
   margin: 0;
   padding-left: 20px;
@@ -626,60 +377,6 @@ body[data-active-view="history"] .capture-picker {
   border-radius: 10px;
   padding: 10px 12px;
 }
-.query-text {
-  margin: 0 0 6px;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.4;
-}
-.domain-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-.domain-tag,
-.site-count {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  font-size: 11px;
-  font-weight: 700;
-}
-.domain-tag {
-  background: var(--panel-3);
-  color: #d9e4ff;
-}
-.site-chip-wrap {
-  display: grid;
-  gap: 8px;
-}
-.site-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 12px;
-}
-.site-name {
-  font-size: 13px;
-  font-weight: 700;
-  word-break: break-all;
-}
-.site-meta {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-shrink: 0;
-}
-.site-count {
-  background: rgba(120,168,255,0.14);
-  color: #dbe7ff;
-}
 .note-list {
   margin: 0;
   padding-left: 18px;
@@ -687,23 +384,17 @@ body[data-active-view="history"] .capture-picker {
   font-size: 13px;
   line-height: 1.5;
 }
-.privacy-card { background: linear-gradient(180deg, rgba(40,196,143,0.08), rgba(255,255,255,0.02)); }
 .empty-state,
 .small-print {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
 }
-.small-print p { margin: 0 0 10px; }
-.small-print p:last-child { margin-bottom: 0; }
 .hidden { display: none !important; }
 /* Stage 6.10: legacy `.toast` override (`position: fixed; bottom: 16px;`)
    removed so the design-system `.toast` rule (top-centre pill with 2.8s
    auto-fade) wins. Keeping the colour utility classes since they still
    describe semantic state for downstream callers. */
-.status-ok { color: var(--accent, #1f9680); }
-.status-warn { color: #ffe6b0; }
-.status-error { color: #ffd1d1; }
 /* Toast — pin to viewport (not document) so it works in both popup
    (position:relative ancestor) and full-page (no positioned ancestor)
    contexts. The design-system base uses position:absolute which falls
@@ -723,41 +414,6 @@ body[data-active-view="history"] .capture-picker {
 /* Search-origin-card min-height reset — handled above in the
    grid-column: span 2 block. Leave this rule in place so external
    callers referencing the selector still match. */
-.origin-badge {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  padding: 4px 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-  border: 1px solid var(--border);
-}
-.origin-badge.search {
-  background: rgba(40,196,143,0.16);
-  border-color: rgba(40,196,143,0.35);
-  color: #d9ffe9;
-}
-.origin-badge.likely {
-  background: rgba(120,168,255,0.16);
-  border-color: rgba(120,168,255,0.35);
-  color: #deebff;
-}
-.origin-badge.training {
-  background: rgba(255,255,255,0.05);
-  color: var(--muted);
-}
-.origin-badge.unclear {
-  background: rgba(255, 230, 176, 0.12);
-  border-color: rgba(255, 230, 176, 0.28);
-  color: #ffe6b0;
-}
-.origin-confidence {
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-}
 /* Stage 5.2: legacy .tabbar / .tab-btn rules removed — design-system
    .dash-tabs + .dash-tab (components.css) styles the new top nav. */
 
@@ -959,115 +615,13 @@ html[data-theme="dark"] .hero-stat__capture:hover {
   background: var(--accent);
   color: #fff;
 }
-.smallish {
-  font-size: 16px;
-  line-height: 1.25;
-  font-weight: 800;
-  word-break: break-word;
-}
-.utility-card { background: linear-gradient(180deg, rgba(120,168,255,0.08), rgba(255,255,255,0.02)); }
-.small-note {
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.45;
-}
-.result-wrap {
-  display: grid;
-  gap: 8px;
-}
-.result-row {
-  display: grid;
-  gap: 8px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px;
-}
-.result-top {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.result-rank,
-.google-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  font-size: 12px;
-  font-weight: 700;
-}
-.result-rank { background: rgba(255,255,255,0.06); }
-.google-pill { background: rgba(40,196,143,0.12); color: #d9ffe9; }
-.result-title {
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.35;
-}
-.result-snippet {
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.45;
-}
 
-
-.metric-meta {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.35;
-}
-.intensity-card { grid-column: span 2; }
-.small-note {
-  margin: 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-.summary-toggle {
-  list-style: none;
-  cursor: pointer;
-  align-items: flex-start;
-}
-.summary-toggle::-webkit-details-marker { display: none; }
-.summary-toggle::after {
-  content: "▾";
-  color: var(--muted);
-  font-size: 16px;
-  font-weight: 800;
-  margin-left: auto;
-  padding-top: 2px;
-}
-.expansion-details:not([open]) .summary-toggle::after { content: "▸"; }
-.expansion-block {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-}
-.expansion-label {
-  color: var(--muted);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  font-weight: 700;
-}
 .expansion-tree {
   display: grid;
   gap: 10px;
   background: transparent;
   padding: 0;
   border: 0;
-}
-.expansion-root {
-  display: grid;
-  gap: 10px;
-}
-.expansion-node {
-  display: grid;
-  gap: 8px;
 }
 .expansion-node-label {
   font-family: var(--font-mono);
@@ -1101,78 +655,7 @@ html[data-theme="dark"] .hero-stat__capture:hover {
   font-size: var(--fs-body-sm);
   line-height: 1.4;
 }
-.strength-wrap {
-  display: grid;
-  gap: 10px;
-}
-.strength-row {
-  display: grid;
-  gap: 8px;
-}
-.strength-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.strength-domain {
-  font-size: 14px;
-  font-weight: 700;
-  word-break: break-all;
-}
-.strength-bar-track {
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.08);
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.06);
-}
-.strength-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(120,168,255,0.85), rgba(139,92,246,0.85));
-}
 
-
-.metric-meta {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
-  margin-top: 8px;
-}
-.combined-grid .overlap-card {
-  grid-column: span 2;
-}
-.comparison-table {
-  display: grid;
-  gap: 8px;
-}
-.comparison-row {
-  display: grid;
-  grid-template-columns: 1.2fr 0.7fr 0.6fr 1.5fr 0.9fr;
-  gap: 10px;
-  align-items: start;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px;
-}
-.comparison-header {
-  background: transparent;
-  border-style: dashed;
-}
-.comparison-cell {
-  font-size: 12px;
-  line-height: 1.4;
-  word-break: break-word;
-}
-.comparison-header .comparison-cell {
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--muted);
-  font-weight: 800;
-  font-size: 11px;
-}
 .domain-cell {
   font-weight: 800;
 }
@@ -1194,67 +677,7 @@ html[data-theme="dark"] .hero-stat__capture:hover {
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
-.title-cell {
-  color: #d7e3ff;
-}
-.overlap-tag {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  font-size: 11px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-.overlap-tag.shared {
-  background: rgba(40,196,143,0.12);
-  border-color: rgba(40,196,143,0.28);
-  color: #d9ffe9;
-}
-.overlap-tag.chatgpt-only {
-  background: rgba(139,92,246,0.12);
-  border-color: rgba(139,92,246,0.28);
-  color: #ece3ff;
-}
-.overlap-tag.google-only {
-  background: rgba(120,168,255,0.12);
-  border-color: rgba(120,168,255,0.28);
-  color: #dbe8ff;
-}
 
-.feature-chip-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.feature-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: rgba(139,92,246,0.16);
-  color: #efe7ff;
-  font-size: 12px;
-  font-weight: 700;
-}
-.result-url {
-  color: var(--muted);
-  font-size: 12px;
-  word-break: break-all;
-  margin-top: 4px;
-}
-
-
-.history-card { display: grid; gap: 8px; }
-.history-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
-.history-title { font-size:14px; font-weight:800; line-height:1.35; }
-.history-meta { color: var(--muted); font-size:12px; line-height:1.45; }
-.history-badges { display:flex; flex-wrap:wrap; gap:6px; }
-.history-badge { display:inline-flex; align-items:center; padding:5px 8px; border-radius:999px; border:1px solid var(--border); font-size:11px; font-weight:700; background: rgba(120,168,255,0.10); }
-.history-drift { color: var(--muted); font-size:12px; }
 .history-search-row {
   display: flex;
   align-items: center;
@@ -1322,45 +745,17 @@ body.light-mode .history-delete-btn {
   justify-content: flex-end;
 }
 
-
 body.full-page {
   padding: 20px;
 }
 body.full-page {
   min-height: 100vh;
 }
-body.full-page .summary-grid {
-  grid-template-columns: repeat(4, 1fr);
-}
-body.full-page .model-card {
-  grid-column: span 2;
-}
-body.full-page .combined-grid {
-  grid-template-columns: repeat(4, 1fr);
-}
-body.full-page .result-wrap,
-body.full-page .site-chip-wrap,
-body.full-page .strength-wrap {
-  max-width: none;
-}
-.source-status {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  font-size: 12px;
-  font-weight: 700;
-  background: rgba(120,168,255,0.12);
-  color: #d9e4ff;
-}
 .source-status.considered {
   background: rgba(255,210,122,0.12);
   color: #ffe7b3;
   border-color: rgba(255,210,122,0.28);
 }
-
-
 
 /* ===== Full-page dashboard (5.2) =====
    With the new top-tabs .dashboard shell there is no grid to orchestrate
@@ -1376,69 +771,9 @@ body.full-page {
 }
 body.full-page .tab-panel.hidden { display: none; }
 
-body.full-page .summary-grid {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 16px;
-}
-
-body.full-page .summary-grid > .card {
-  min-height: 128px;
-}
-
-body.full-page .summary-grid .model-card {
-  grid-column: span 4;
-}
-
-body.full-page .summary-grid .search-origin-card {
-  grid-column: span 4;
-}
-
-body.full-page .summary-grid .intensity-card {
-  grid-column: span 4;
-}
-
-body.full-page .summary-grid > .metric-card:not(.model-card):not(.search-origin-card):not(.intensity-card) {
-  grid-column: span 2;
-}
-
-body.full-page .metric-label {
-  font-size: 0.92rem;
-}
-
-body.full-page .metric-value {
-  font-size: clamp(2rem, 2vw, 2.7rem);
-}
-
-body.full-page .metric-subvalue {
-  font-size: clamp(1.4rem, 1.3vw, 1.8rem);
-}
-
-body.full-page .model-badge,
-body.full-page .origin-badge {
-  min-height: 54px;
-  padding-inline: 16px;
-  font-size: 1.2rem;
-}
-
-body.full-page .card {
-  border-radius: 24px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
-}
-
-body.full-page .card + .card,
-body.full-page .summary-grid + .card,
-body.full-page .utility-card + .card {
-  margin-top: 16px;
-}
-
 body.full-page .utility-card .section-head,
 body.full-page .card .section-head {
   align-items: center;
-}
-
-body.full-page .small-note {
-  max-width: 110ch;
 }
 
 body.full-page .query-list {
@@ -1460,12 +795,6 @@ body.full-page .query-list li {
    across columns, etc.). Each panel's recipe handles its own
    layout now via tokens.css + components.css. */
 
-body.full-page .prompt-box {
-  font-size: 1.05rem;
-  line-height: 1.55;
-  max-width: none;
-}
-
 body.full-page .expansion-tree {
   min-height: 84px;
 }
@@ -1483,16 +812,6 @@ body.full-page .expansion-tree {
    12-column grid. Overlap card and summary span the full row; rank
    comparison takes 8 cols, "missed opportunities" takes 4. Collapses to
    stacked single-column below 1500px (see media query at the bottom). */
-body.full-page .combined-layout {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 16px;
-  align-content: start;
-}
-body.full-page .combined-layout .summary-grid    { grid-column: 1 / -1; }
-body.full-page .combined-layout .overlap-card    { grid-column: span 12; }
-body.full-page .combined-layout .comparison-card { grid-column: span 8; }
-body.full-page .combined-layout .missed-card     { grid-column: span 4; }
 
 body.full-page .empty-state {
   min-height: 80px;
@@ -1500,22 +819,7 @@ body.full-page .empty-state {
   align-items: center;
 }
 
-body.full-page .comparison-table,
-body.full-page .history-table {
-  width: 100%;
-}
-
-body.full-page .result-title,
-body.full-page .source-title,
-body.full-page .comparison-title {
-  font-size: 1rem;
-  line-height: 1.45;
-}
-
 @media (min-width: 2000px) {
-  body.full-page .summary-grid > .metric-card:not(.model-card):not(.search-origin-card):not(.intensity-card) {
-    grid-column: span 1.5;
-  }
 }
 
 /* --- Responsive collapse --------------------------------------------------
@@ -1523,40 +827,15 @@ body.full-page .comparison-title {
    column, and the Combined 8+4 split collapses to full-width rows.
    Summary-grid metric cards rebalance to a 2x denser layout. */
 @media (max-width: 1500px) {
-  body.full-page .combined-layout .comparison-card,
-  body.full-page .combined-layout .missed-card {
-    grid-column: span 12;
-  }
-  body.full-page .summary-grid .model-card,
-  body.full-page .summary-grid .search-origin-card,
-  body.full-page .summary-grid .intensity-card {
-    grid-column: span 6;
-  }
-  body.full-page .summary-grid > .metric-card:not(.model-card):not(.search-origin-card):not(.intensity-card) {
-    grid-column: span 3;
-  }
 }
 
 @media (max-width: 1100px) {
   body.full-page .dashboard { margin: 12px; }
-  body.full-page .summary-grid > .card,
-  body.full-page .summary-grid .model-card,
-  body.full-page .summary-grid .search-origin-card,
-  body.full-page .summary-grid .intensity-card {
-    grid-column: span 6;
-  }
 }
 
 @media (max-width: 760px) {
   body.full-page .dashboard { margin: 8px; }
-  body.full-page .summary-grid > .card,
-  body.full-page .summary-grid .model-card,
-  body.full-page .summary-grid .search-origin-card,
-  body.full-page .summary-grid .intensity-card {
-    grid-column: span 12;
-  }
 }
-
 
 /* --- Google tab -----------------------------------------------------------
    3-column grid with explicit minmax widths so feature-chips /
@@ -1567,32 +846,9 @@ body.full-page .comparison-title {
 
 /* --- History tab ----------------------------------------------------------
    Single-column outer, sub-grid of auto-fit history cards. */
-body.full-page .history-layout {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-  align-content: start;
-}
-body.full-page .history-layout .summary-grid,
-body.full-page .history-layout .history-info-card,
-body.full-page .history-layout .history-main-card {
-  grid-column: 1 / -1;
-}
-body.full-page .history-layout .history-main-card {
-  max-height: none;
-  overflow: visible;
-}
 body.full-page .history-layout #historyWrap {
   grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
   gap: 14px;
-}
-body.full-page .history-layout .history-card {
-  min-height: 180px;
-}
-body.full-page .history-layout .history-info-card .small-note {
-  max-width: none;
-  font-size: 0.98rem;
-  line-height: 1.65;
 }
 
 /* --- Auxiliary full-page rules (not tab-layout) --------------------------- */
@@ -1630,29 +886,10 @@ body.full-page .history-main-card .section-head {
   padding-bottom: 10px;
 }
 
-body.full-page .organic-results-card,
-body.full-page .sites-found-card,
-body.full-page .serp-features-card,
-body.full-page .comparison-card,
-body.full-page .missed-card,
-body.full-page .history-main-card {
-  max-height: calc(100vh - 250px);
-  overflow: auto;
-}
-
 body.full-page #googleQueryLabel,
 body.full-page .smallish {
   word-break: break-word;
   overflow-wrap: anywhere;
-}
-
-body.full-page .metric-card {
-  min-width: 0;
-}
-
-body.full-page .history-info-card .small-note {
-  font-size: 0.98rem;
-  line-height: 1.65;
 }
 
 /* (The former @media (max-width: 1600px) block only re-stated rules
@@ -1666,11 +903,9 @@ body.full-page .history-info-card .small-note {
   }
 }
 
-
 /* (The earlier "Refinements for full-page Google and History tabs" block
    was consolidated into the single source-of-truth layout section
    higher up in stage 2.8.) */
-
 
 /* Theme toggle + light mode
    Stage 5.2: the body background is now driven by the design-system
@@ -1681,100 +916,6 @@ body.full-page .history-info-card .small-note {
 body.light-mode {
   color: var(--ink);
 }
-
-body.light-mode .app,
-body.light-mode .card,
-body.light-mode .hero,
-body.light-mode .tabbar {
-  color: #0f1b4d;
-}
-
-.turns-wrap {
-  display: grid;
-  gap: 12px;
-}
-
-.turn-card {
-  border: 1px solid rgba(155,176,255,.14);
-  border-radius: 18px;
-  background: rgba(7,17,56,.36);
-  overflow: hidden;
-}
-
-.turn-summary {
-  display: grid;
-  grid-template-columns: minmax(0,1fr) auto;
-  gap: 12px;
-  align-items: start;
-  padding: 14px 16px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.turn-summary::-webkit-details-marker {
-  display: none;
-}
-
-.turn-title {
-  font-weight: 700;
-  line-height: 1.45;
-}
-
-.turn-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.turn-body {
-  padding: 0 16px 16px;
-  display: grid;
-  gap: 12px;
-}
-
-.turn-subgrid {
-  display: grid;
-  gap: 10px;
-}
-
-.turn-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: .86rem;
-  background: rgba(76,104,217,.18);
-  border: 1px solid rgba(155,176,255,.16);
-}
-
-.turn-list {
-  display: grid;
-  gap: 8px;
-}
-
-.turn-list-item {
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(255,255,255,.03);
-  border: 1px solid rgba(155,176,255,.10);
-  line-height: 1.45;
-}
-
-body.light-mode .turn-card {
-  background: rgba(255,255,255,0.86);
-  border-color: rgba(90,120,220,0.14);
-}
-body.light-mode .turn-list-item {
-  background: rgba(243,247,255,0.95);
-  border-color: rgba(90,120,220,0.10);
-}
-
-body.full-page .turns-wrap {
-  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-}
-
-
 
 /* ===== Light mode contrast fixes =====
    Stage 5.9.8: dropped `body.light-mode .tab-panel *` from this universal-
@@ -1838,47 +979,15 @@ body.light-mode .section-actions * {
   color: #1a2f73 !important;
 }
 
-body.light-mode .small-note,
-body.light-mode .metric-label,
-body.light-mode .section-summary,
-body.light-mode .metric-meta,
-body.light-mode .origin-confidence,
-body.light-mode .expansion-label,
-body.light-mode .eyebrow,
-body.light-mode .history-drift,
-body.light-mode .result-meta,
-body.light-mode .source-meta {
-  /* Darkened from #6172a7 (~4.15:1 on the light blue background, which
-     fails WCAG AA for small text) to #3d4e86 (~6.5:1, comfortably AA). */
-  color: #3d4e86 !important;
-}
-
 /* Stage 5.9.6: removed `body.light-mode .empty-state { color: #3d4e86 }`.
    Design-system .empty-state is meant to render in --ink-3 (warm
    grey #6E6E66) which already passes WCAG AA on --bg / --card. The
    blue override was making "No source items captured yet" and other
    placeholder copy look like links. */
 
-body.light-mode .domain-tag,
-body.light-mode .site-count,
-body.light-mode .feature-chip,
-body.light-mode .history-badge,
-body.light-mode .turn-pill {
-  color: #2140a8 !important;
-  background: rgba(76, 104, 217, 0.12) !important;
-  border-color: rgba(76,104,217,0.22) !important;
-}
-
 body.light-mode .tab-btn.active {
   color: #2140a8 !important;
   background: rgba(76, 104, 217, 0.10) !important;
-}
-
-body.light-mode .result-card,
-body.light-mode .result-row,
-body.light-mode .source-card,
-body.light-mode .comparison-row {
-  background: rgba(248, 250, 255, 0.96) !important;
 }
 
 body.light-mode .organic-results-card .section-head,
@@ -1890,33 +999,6 @@ body.light-mode .history-main-card .section-head {
   background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(245,248,255,0.95)) !important;
 }
 
-body.light-mode .status-card,
-body.light-mode #statusCard {
-  color: #16306e !important;
-}
-
-body.light-mode .status-ok {
-  color: #1e6b52 !important;
-}
-
-body.light-mode .status-warn {
-  /* Dark mode value (#ffe6b0) has 1.06:1 contrast on light background —
-     unreadable. Use a deep amber that clears WCAG AA (4.7:1 on #eaf0ff). */
-  color: #8a5a00 !important;
-}
-
-body.light-mode .status-error {
-  color: #a23b3b !important;
-}
-
-body.light-mode .origin-badge.training {
-  /* Dark mode uses var(--muted) = #9cadcf, which has 1.80:1 contrast on
-     the light background — fails AA. Use the site's muted-blue ink. */
-  color: #3d4e86 !important;
-  background: rgba(61, 78, 134, 0.08) !important;
-  border-color: rgba(61, 78, 134, 0.22) !important;
-}
-
 body.light-mode a,
 body.light-mode a:visited {
   color: #2140a8 !important;
@@ -1926,17 +1008,6 @@ body.light-mode .ghost-btn,
 body.light-mode .refresh-btn {
   font-weight: 700;
 }
-
-body.light-mode .comparison-row .overlap-badge,
-body.light-mode .shared-badge {
-  color: #155c4b !important;
-}
-
-body.light-mode .google-only-badge {
-  color: #415792 !important;
-}
-
-
 
 /* ===== Light mode fix for query expansion dark panel ===== */
 body.light-mode .expansion-tree,
@@ -1966,23 +1037,10 @@ body.light-mode .expansion-leaf {
   border-color: rgba(90, 120, 220, 0.14) !important;
 }
 
-body.light-mode .expansion-tree .domain-tag,
-body.light-mode .expansion-tree .turn-pill,
-body.light-mode .expansion-tree .site-count {
-  color: #2140a8 !important;
-  background: rgba(76, 104, 217, 0.12) !important;
-  border-color: rgba(76,104,217,0.22) !important;
-}
-
 body.light-mode .expansion-details summary,
 body.light-mode .summary-toggle,
 body.light-mode .summary-toggle * {
   color: #1a2f73 !important;
-}
-
-body.light-mode .prompt-box {
-  color: #13255d !important;
-  background: rgba(248, 250, 255, 0.96) !important;
 }
 
 /* -----------------------------------------------------------------------
@@ -2256,100 +1314,10 @@ body.light-mode .switch__slider::after { background: #ffffff; }
    Overlap score breakdown (precision / recall / Jaccard chips inside
    the combined-tab overlap metric card).
    ----------------------------------------------------------------------- */
-.metric-label-hint {
-  display: inline-block;
-  margin-left: 2px;
-  color: var(--muted, #9aa3b2);
-  font-size: 11px;
-  cursor: help;
-  opacity: 0.75;
-}
-.overlap-breakdown {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-  flex-wrap: wrap;
-}
-.overlap-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid var(--border, rgba(255,255,255,0.1));
-  border-radius: 8px;
-  background: rgba(255,255,255,0.03);
-  cursor: help;
-}
-.overlap-stat__label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted, #9aa3b2);
-}
-.overlap-stat__value {
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--text, #e7ecf7);
-}
-body.light-mode .overlap-stat {
-  background: rgba(13, 28, 74, 0.04) !important;
-  border-color: rgba(13, 28, 74, 0.15) !important;
-}
-body.light-mode .overlap-stat__label { color: #3d4e86 !important; }
-body.light-mode .overlap-stat__value { color: #13255d !important; }
-body.light-mode .metric-label-hint   { color: #3d4e86 !important; }
 
 /* -----------------------------------------------------------------------
    Combined-tab toolbar (registered-domain matching toggle).
    ----------------------------------------------------------------------- */
-.combined-controls {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 12px;
-}
-.inline-toggle {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 8px 12px;
-  border: 1px solid var(--border, rgba(255,255,255,0.1));
-  border-radius: 10px;
-  background: rgba(255,255,255,0.03);
-  cursor: pointer;
-  max-width: 420px;
-}
-.inline-toggle__copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.inline-toggle__label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text, #e7ecf7);
-}
-.inline-toggle__hint {
-  font-size: 11px;
-  color: var(--muted, #9aa3b2);
-  line-height: 1.45;
-}
-.inline-toggle code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 10.5px;
-  background: rgba(255,255,255,0.06);
-  padding: 0 3px;
-  border-radius: 3px;
-}
-body.light-mode .inline-toggle {
-  background: rgba(13, 28, 74, 0.04) !important;
-  border-color: rgba(13, 28, 74, 0.15) !important;
-}
-body.light-mode .inline-toggle__label { color: #13255d !important; }
-body.light-mode .inline-toggle__hint  { color: #3d4e86 !important; }
 body.light-mode .inline-toggle code   { background: rgba(13, 28, 74, 0.08) !important; }
 
 /* -----------------------------------------------------------------------
@@ -2361,9 +1329,6 @@ body.light-mode .inline-toggle code   { background: rgba(13, 28, 74, 0.08) !impo
    already shown) in the popup; they're still visible on the full-page
    dashboard.
    ----------------------------------------------------------------------- */
-body:not(.full-page) .popup-hide {
-  display: none !important;
-}
 
 /* Prompt intent badge — a secondary chip rendered inside the search-origin
    card, using the shared .origin-line row layout. */
@@ -2476,11 +1441,6 @@ body:not(.full-page) .popup-hide {
 
 /* History sparkline (stage 3.5). Sits to the right of the overlap-%
    chip; SVG inlines --accent so it picks up light-mode colours. */
-.history-overlap {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
 .history-spark {
   display: block;
   opacity: 0.85;
@@ -2494,7 +1454,6 @@ body.light-mode .history-spark line[stroke-dasharray] {
    Lists Google AIO citation sources and marks the ones ChatGPT also
    cited with a green check.
    ----------------------------------------------------------------------- */
-.aio-card { padding-bottom: 8px; }
 .aio-list {
   display: flex;
   flex-direction: column;
