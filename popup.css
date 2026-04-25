@@ -365,21 +365,12 @@ body.light-mode .count-badge {
 }
 .capture-picker[hidden] { display: none; }
 
-/* Stage 5.9.4 — context-aware picker visibility.
-   ChatGPT tab → only the ChatGPT picker; Google tab → only the
-   Google picker; Compare → both; History → neither (the user is
-   browsing saved pairs there, not selecting a live capture). */
-body[data-active-view="chatgpt"] #googlePickerCard,
-body[data-active-view="google"] #chatgptPickerCard,
+/* Stage 6 — single conversation picker drives all tabs. The picker
+   stays visible everywhere except History (where the user is browsing
+   saved pairs, not selecting a live capture). The Stage-5.9.4 dual-
+   picker visibility rules are gone with the dual picker itself. */
 body[data-active-view="history"] .capture-picker {
   display: none !important;
-}
-/* When only one picker is visible, single-column the row so the
-   visible picker grows to full width instead of getting clipped to
-   a 50% column on a 2-col grid. */
-body[data-active-view="chatgpt"] .capture-picker-row,
-body[data-active-view="google"] .capture-picker-row {
-  grid-template-columns: minmax(0, 1fr) !important;
 }
 .capture-picker::before {
   content: "";
@@ -460,6 +451,91 @@ body[data-active-view="google"] .capture-picker-row {
 .picker-select:hover { border-color: var(--ink-3); background-color: var(--card-2); }
 .picker-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .picker-select option { background: var(--card); color: var(--ink); }
+
+/* Stage 6 — paired-Google badge inside the conversation picker. Sits
+   next to the timestamp chip; ink-2 when present, accent when 1+
+   paired Google captures exist. */
+#conversationPickerPaired {
+  background: var(--accent-bg);
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+#conversationPickerPaired[data-paired="0"] {
+  background: var(--bg-2);
+  border-color: var(--border);
+  color: var(--ink-3);
+}
+
+/* Stage 6 — standalone Google captures bar. Lives at the top of
+   #panelGoogle, hidden when no standalone captures exist. Collapsed
+   by default; click toggles. */
+.standalone-bar {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.standalone-bar[hidden] { display: none; }
+.standalone-bar__toggle {
+  width: 100%;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  background: transparent;
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+}
+.standalone-bar__toggle:hover { background: var(--bg-2); }
+.standalone-bar__icon {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+  color: var(--ink-3);
+}
+.standalone-bar__icon svg { width: 14px; height: 14px; }
+.standalone-bar__label {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: var(--fs-body-sm);
+}
+.standalone-bar__count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.standalone-bar__chevron {
+  margin-left: auto;
+  display: inline-flex; align-items: center;
+  color: var(--ink-3);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.standalone-bar__chevron svg { width: 14px; height: 14px; }
+.standalone-bar__toggle[aria-expanded="true"] .standalone-bar__chevron { transform: rotate(180deg); }
+.standalone-bar__body {
+  padding: 4px 14px 14px;
+  border-top: 1px solid var(--border);
+}
+.standalone-bar__body[hidden] { display: none; }
+.standalone-bar__note {
+  margin: 10px 0 12px;
+  color: var(--ink-3);
+  font-size: var(--fs-caption);
+  line-height: 1.5;
+}
+.standalone-bar__row {
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap;
+}
+.standalone-bar__row .picker-select { max-width: none; flex: 1 1 240px; }
 /* Stage 5.2: legacy .icon-btn rules removed — design-system's
    .icon-btn (components.css) styles the dash-header icons. */
 .danger-ghost {

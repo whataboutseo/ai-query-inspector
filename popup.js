@@ -174,13 +174,23 @@ const els = {
   clearChatgptArchiveBtn: document.getElementById('clearChatgptArchiveBtn'),
   clearGoogleArchiveBtn: document.getElementById('clearGoogleArchiveBtn'),
 
-  // Stage 4.2 capture pickers
-  chatgptPickerCard: document.getElementById('chatgptPickerCard'),
-  chatgptPickerSelect: document.getElementById('chatgptPickerSelect'),
-  chatgptPickerNote: document.getElementById('chatgptPickerNote'),
-  googlePickerCard: document.getElementById('googlePickerCard'),
-  googlePickerSelect: document.getElementById('googlePickerSelect'),
-  googlePickerNote: document.getElementById('googlePickerNote'),
+  // Stage 6 unified conversation picker (replaces the Stage 4.2 dual
+  // ChatGPT + Google selects). One picker drives every panel — picking
+  // a conversation sets both lastChatgptData and the latest paired
+  // Google capture.
+  conversationPickerCard: document.getElementById('conversationPickerCard'),
+  conversationPickerSelect: document.getElementById('conversationPickerSelect'),
+  conversationPickerNote: document.getElementById('conversationPickerNote'),
+  conversationPickerCurrent: document.getElementById('conversationPickerCurrent'),
+  conversationPickerStamp: document.getElementById('conversationPickerStamp'),
+  conversationPickerPaired: document.getElementById('conversationPickerPaired'),
+  // Stage 6 standalone Google captures bar (Google panel only)
+  standaloneGoogleBar: document.getElementById('standaloneGoogleBar'),
+  standaloneGoogleToggle: document.getElementById('standaloneGoogleToggle'),
+  standaloneGoogleBody: document.getElementById('standaloneGoogleBody'),
+  standaloneGoogleSelect: document.getElementById('standaloneGoogleSelect'),
+  standaloneGoogleCount: document.getElementById('standaloneGoogleCount'),
+  standaloneGoogleClearBtn: document.getElementById('standaloneGoogleClearBtn'),
 };
 
 let toastTimer = null;
@@ -199,15 +209,23 @@ let currentSettings = { ...self.AIQIShared.DEFAULT_SETTINGS };
 // Handle for the auto-refresh setInterval; null when the feature is off.
 let autoRefreshTimer = null;
 
-// Stage 4.2 capture picker state. Archive caches mirror chrome.storage
-// and are refreshed lazily on storage.onChanged. userPickedXxxId is
-// non-null iff the user manually selected a non-latest entry — in that
-// case, incoming live CHATGPT_DATA/GOOGLE_DATA storage events do NOT
-// stomp their view.
+// Stage 6 unified picker state. Two flat archives are still the
+// storage source of truth (chatgptInspectorArchive / googleInspector-
+// Archive) — `pairedView` is the derived hierarchical view used by
+// the picker, computed via shared.getPairedConversations() any time
+// either archive changes.
+//   userPickedConversationId: non-null when the user explicitly picked
+//   a conversation — incoming live CHATGPT_DATA storage events do NOT
+//   stomp the view in that case.
+//   userPickedStandaloneGoogleId: non-null when the user is browsing
+//   a standalone Google capture (no parent conversation). While set,
+//   the Google panel renders that capture; "Return to paired" clears
+//   it back to the conversation's paired Google capture.
 let chatgptArchive = [];
 let googleArchive = [];
-let userPickedChatgptId = null;
-let userPickedGoogleId = null;
+let pairedView = { conversations: [], standaloneGoogle: [] };
+let userPickedConversationId = null;
+let userPickedStandaloneGoogleId = null;
 // Stage 4.4 history filter. Lowercased for case-insensitive matching.
 let historySearchTerm = '';
 // Stage 5.6 two-level History: null = list view, bucket key = detail view.
@@ -770,7 +788,7 @@ function renderCitationStrength(data) {
 //    payload) or section 9 (inspection results).
 // ============================================================================
 
-// --- Stage 4.2 capture picker helpers -------------------------------------
+// --- Stage 6 unified conversation picker helpers --------------------------
 
 function formatPickerTimestamp(iso) {
   if (!iso) return 'Unknown';
@@ -784,185 +802,211 @@ function formatPickerTimestamp(iso) {
   return `${date} ${time}`;
 }
 
-function buildChatgptPickerLabel(entry, isLatest) {
-  const stamp = formatPickerTimestamp(entry?.capturedAt);
-  // Prefer the ChatGPT sidebar title (stable across turns) over the
-  // last-turn prompt. Fall back to the prompt for legacy entries that
-  // pre-date title capture, then to the conversationId as a last
-  // resort so we never render a bare timestamp.
-  const raw = entry?.title || entry?.latestUserPrompt || entry?.conversationId || 'Untitled conversation';
+function buildConversationPickerLabel(conv, isLatest) {
+  const stamp = formatPickerTimestamp(conv?.latestChatgptCapture?.capturedAt);
+  const raw = conv?.title || conv?.latestChatgptCapture?.latestUserPrompt || conv?.conversationId || 'Untitled conversation';
   const label = sanitizeString(raw, 60);
-  const suffix = isLatest ? ' · Latest' : '';
-  return `${stamp} — ${label}${suffix}`;
+  const gCount = conv?.googleCaptures?.length || 0;
+  const cCount = conv?.chatgptCaptures?.length || 0;
+  const parts = [];
+  if (cCount > 1) parts.push(`${cCount} snapshots`);
+  if (gCount === 0) parts.push('no SERP');
+  else if (gCount === 1) parts.push('Google ✓');
+  else parts.push(`${gCount} SERPs`);
+  if (isLatest) parts.push('Latest');
+  return `${stamp} — ${label} · ${parts.join(' · ')}`;
 }
 
-function buildGooglePickerLabel(entry, isLatest) {
+function buildStandaloneGoogleLabel(entry) {
   const stamp = formatPickerTimestamp(entry?.capturedAt);
   const engine = entry?.engineLabel || titleCaseEngine(entry?.engine || '');
   const query = sanitizeString(entry?.query || 'No query', 60);
-  const suffix = isLatest ? ' · Latest' : '';
-  return `${stamp} — ${engine}: ${query}${suffix}`;
+  return `${stamp} — ${engine}: ${query}`;
 }
 
-function findArchiveEntryById(archive, id) {
+function findConversationById(id) {
   if (!id) return null;
-  return archive.find((entry) => entry?.id === id) || null;
+  return pairedView.conversations.find((c) => c.conversationId === id) || null;
 }
 
-// Stage 5.9: paint the prominent picker bar with the currently-shown
-// capture's title + mono timestamp chip. Short-circuits renderChatgpt
-// being about to overwrite the same surface — the picker needs its own
-// always-up-to-date reflection of the selection.
-function paintChatgptPickerCurrent(entry, isLatest) {
-  const currentEl = document.getElementById('chatgptPickerCurrent');
-  const stampEl = document.getElementById('chatgptPickerStamp');
-  if (currentEl) {
-    const label = sanitizeString(entry?.title || entry?.latestUserPrompt || entry?.conversationId || 'Untitled conversation', 120);
-    currentEl.textContent = label;
-  }
-  if (stampEl) {
-    const stamp = formatPickerTimestamp(entry?.capturedAt);
-    stampEl.textContent = isLatest ? `${stamp} · LATEST` : stamp;
-  }
+function findStandaloneGoogleById(id) {
+  if (!id) return null;
+  return pairedView.standaloneGoogle.find((g) => g?.id === id) || null;
 }
 
-function paintGooglePickerCurrent(entry, isLatest) {
-  const currentEl = document.getElementById('googlePickerCurrent');
-  const stampEl = document.getElementById('googlePickerStamp');
-  if (currentEl) {
-    const engine = entry?.engineLabel || titleCaseEngine(entry?.engine || '');
-    const query = sanitizeString(entry?.query || 'No query', 120);
-    currentEl.textContent = engine ? `${engine}: ${query}` : query;
+function paintConversationPickerCurrent(conv, isLatest) {
+  if (!conv) return;
+  if (els.conversationPickerCurrent) {
+    const label = sanitizeString(conv.title || conv.latestChatgptCapture?.latestUserPrompt || conv.conversationId || 'Untitled conversation', 120);
+    els.conversationPickerCurrent.textContent = label;
   }
-  if (stampEl) {
-    const stamp = formatPickerTimestamp(entry?.capturedAt);
-    stampEl.textContent = isLatest ? `${stamp} · LATEST` : stamp;
+  if (els.conversationPickerStamp) {
+    const stamp = formatPickerTimestamp(conv.latestChatgptCapture?.capturedAt);
+    els.conversationPickerStamp.textContent = isLatest ? `${stamp} · LATEST` : stamp;
+  }
+  if (els.conversationPickerPaired) {
+    const gCount = conv.googleCaptures?.length || 0;
+    els.conversationPickerPaired.hidden = false;
+    els.conversationPickerPaired.dataset.paired = String(gCount);
+    if (gCount === 0) els.conversationPickerPaired.textContent = 'No paired SERP';
+    else if (gCount === 1) els.conversationPickerPaired.textContent = 'Google ✓';
+    else els.conversationPickerPaired.textContent = `${gCount} paired SERPs`;
   }
 }
 
-function renderChatgptPicker() {
-  const select = els.chatgptPickerSelect;
-  const card = els.chatgptPickerCard;
+function renderConversationPicker() {
+  const select = els.conversationPickerSelect;
+  const card = els.conversationPickerCard;
   if (!select || !card) return;
-  if (!Array.isArray(chatgptArchive) || chatgptArchive.length === 0) {
+  if (!pairedView.conversations.length) {
     card.hidden = true;
     return;
   }
   card.hidden = false;
-  const currentId = userPickedChatgptId || lastChatgptData?.id || chatgptArchive[0]?.id || '';
+  const latestId = pairedView.conversations[0]?.conversationId || '';
+  const currentId = userPickedConversationId || latestId;
   select.innerHTML = '';
-  let currentEntry = null;
-  chatgptArchive.forEach((entry, idx) => {
-    if (!entry?.id) return;
+  let currentConv = null;
+  pairedView.conversations.forEach((conv, idx) => {
+    if (!conv?.conversationId) return;
     const opt = document.createElement('option');
-    opt.value = entry.id;
-    opt.textContent = buildChatgptPickerLabel(entry, idx === 0);
-    if (entry.id === currentId) { opt.selected = true; currentEntry = entry; }
+    opt.value = conv.conversationId;
+    opt.textContent = buildConversationPickerLabel(conv, idx === 0);
+    if (conv.conversationId === currentId) { opt.selected = true; currentConv = conv; }
     select.appendChild(opt);
   });
-  const activeEntry = currentEntry || chatgptArchive[0];
-  const isLatest = chatgptArchive[0]?.id === activeEntry?.id;
-  paintChatgptPickerCurrent(activeEntry, isLatest);
-  updateChatgptPickerNote();
+  const activeConv = currentConv || pairedView.conversations[0];
+  paintConversationPickerCurrent(activeConv, activeConv.conversationId === latestId);
+  updateConversationPickerNote();
 }
 
-function renderGooglePicker() {
-  const select = els.googlePickerSelect;
-  const card = els.googlePickerCard;
-  if (!select || !card) return;
-  if (!Array.isArray(googleArchive) || googleArchive.length === 0) {
-    card.hidden = true;
-    return;
-  }
-  card.hidden = false;
-  const currentId = userPickedGoogleId || lastGoogleData?.id || googleArchive[0]?.id || '';
-  select.innerHTML = '';
-  let currentEntry = null;
-  googleArchive.forEach((entry, idx) => {
-    if (!entry?.id) return;
-    const opt = document.createElement('option');
-    opt.value = entry.id;
-    opt.textContent = buildGooglePickerLabel(entry, idx === 0);
-    if (entry.id === currentId) { opt.selected = true; currentEntry = entry; }
-    select.appendChild(opt);
-  });
-  const activeEntry = currentEntry || googleArchive[0];
-  const isLatest = googleArchive[0]?.id === activeEntry?.id;
-  paintGooglePickerCurrent(activeEntry, isLatest);
-  updateGooglePickerNote();
-}
-
-function updateChatgptPickerNote() {
-  const note = els.chatgptPickerNote;
+function updateConversationPickerNote() {
+  const note = els.conversationPickerNote;
   if (!note) return;
-  if (userPickedChatgptId) {
+  if (userPickedConversationId) {
     note.hidden = false;
-    note.textContent = 'Viewing an archived capture. New captures stay queued — open the dropdown to return to Latest.';
+    note.textContent = 'Pinned to this conversation. New captures of other conversations stay queued — open the dropdown to switch.';
+  } else if (userPickedStandaloneGoogleId) {
+    note.hidden = false;
+    note.textContent = 'Google panel is showing a standalone SERP capture. Use "Return to paired" on that bar to switch back.';
   } else {
     note.hidden = true;
     note.textContent = '';
   }
 }
 
-function updateGooglePickerNote() {
-  const note = els.googlePickerNote;
-  if (!note) return;
-  if (userPickedGoogleId) {
-    note.hidden = false;
-    note.textContent = 'Viewing an archived SERP capture. New captures stay queued — open the dropdown to return to Latest.';
-  } else {
-    note.hidden = true;
-    note.textContent = '';
-  }
-}
-
-function handleChatgptPickerChange(selectedId) {
-  if (!selectedId) return;
-  const entry = findArchiveEntryById(chatgptArchive, selectedId);
-  if (!entry) return;
-  const isLatest = chatgptArchive[0]?.id === selectedId;
-  userPickedChatgptId = isLatest ? null : selectedId;
-  lastChatgptData = entry;
+function applyConversationSelection(conv) {
+  if (!conv) return;
+  lastChatgptData = conv.latestChatgptCapture || null;
+  // Picking a conversation always returns Google to the paired capture
+  // (latest one for that conversation), even if the user had been
+  // browsing a standalone — selecting a conversation is a clear intent.
+  userPickedStandaloneGoogleId = null;
+  lastGoogleData = conv.googleCaptures?.[0] || null;
   renderChatgpt(lastChatgptData);
-  renderCombined();
-  renderHistory();
-  populatePopup();
-  paintChatgptPickerCurrent(entry, isLatest);
-  updateChatgptPickerNote();
-}
-
-function handleGooglePickerChange(selectedId) {
-  if (!selectedId) return;
-  const entry = findArchiveEntryById(googleArchive, selectedId);
-  if (!entry) return;
-  const isLatest = googleArchive[0]?.id === selectedId;
-  userPickedGoogleId = isLatest ? null : selectedId;
-  lastGoogleData = entry;
   renderGoogle(lastGoogleData);
   renderCombined();
   renderHistory();
   populatePopup();
-  paintGooglePickerCurrent(entry, isLatest);
-  updateGooglePickerNote();
+  renderStandaloneGoogleBar();
+}
+
+function handleConversationPickerChange(selectedId) {
+  if (!selectedId) return;
+  const conv = findConversationById(selectedId);
+  if (!conv) return;
+  const latestId = pairedView.conversations[0]?.conversationId || '';
+  const isLatest = selectedId === latestId;
+  userPickedConversationId = isLatest ? null : selectedId;
+  applyConversationSelection(conv);
+  paintConversationPickerCurrent(conv, isLatest);
+  updateConversationPickerNote();
+}
+
+function renderStandaloneGoogleBar() {
+  const bar = els.standaloneGoogleBar;
+  const select = els.standaloneGoogleSelect;
+  const countEl = els.standaloneGoogleCount;
+  const clearBtn = els.standaloneGoogleClearBtn;
+  if (!bar || !select) return;
+  const items = pairedView.standaloneGoogle;
+  if (!items.length) {
+    bar.hidden = true;
+    return;
+  }
+  bar.hidden = false;
+  if (countEl) countEl.textContent = String(items.length);
+  select.innerHTML = '';
+  // Placeholder option lets the select represent "nothing picked yet"
+  // when the user hasn't touched it — important because the conversation-
+  // paired Google capture is the default view.
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = userPickedStandaloneGoogleId
+    ? '— pick another standalone capture —'
+    : '— pick a standalone SERP capture —';
+  select.appendChild(placeholder);
+  items.forEach((entry) => {
+    if (!entry?.id) return;
+    const opt = document.createElement('option');
+    opt.value = entry.id;
+    opt.textContent = buildStandaloneGoogleLabel(entry);
+    if (entry.id === userPickedStandaloneGoogleId) opt.selected = true;
+    select.appendChild(opt);
+  });
+  if (clearBtn) clearBtn.hidden = !userPickedStandaloneGoogleId;
+}
+
+function handleStandaloneGoogleChange(selectedId) {
+  if (!selectedId) return;
+  const entry = findStandaloneGoogleById(selectedId);
+  if (!entry) return;
+  userPickedStandaloneGoogleId = selectedId;
+  lastGoogleData = entry;
+  renderGoogle(lastGoogleData);
+  renderCombined();
+  populatePopup();
+  renderStandaloneGoogleBar();
+  updateConversationPickerNote();
+}
+
+function returnToPairedGoogle() {
+  userPickedStandaloneGoogleId = null;
+  const currentId = userPickedConversationId || pairedView.conversations[0]?.conversationId || '';
+  const conv = findConversationById(currentId);
+  lastGoogleData = conv?.googleCaptures?.[0] || null;
+  renderGoogle(lastGoogleData);
+  renderCombined();
+  populatePopup();
+  renderStandaloneGoogleBar();
+  updateConversationPickerNote();
+}
+
+function rebuildPairedView() {
+  pairedView = self.AIQIShared.getPairedConversations({
+    chatgpt: chatgptArchive,
+    google: googleArchive,
+  });
+  // Drop a pinned conversation that has aged out of the archive so we
+  // resume tracking live captures rather than staring at an orphan id.
+  if (userPickedConversationId && !findConversationById(userPickedConversationId)) {
+    userPickedConversationId = null;
+  }
+  if (userPickedStandaloneGoogleId && !findStandaloneGoogleById(userPickedStandaloneGoogleId)) {
+    userPickedStandaloneGoogleId = null;
+  }
+  renderConversationPicker();
+  renderStandaloneGoogleBar();
 }
 
 async function refreshChatgptArchive() {
   chatgptArchive = await self.AIQIShared.storage.loadChatgptArchive();
-  // If the user had picked an entry that has since been trimmed out of
-  // the archive, drop the pin so they start tracking live again rather
-  // than staring at an orphan id.
-  if (userPickedChatgptId && !findArchiveEntryById(chatgptArchive, userPickedChatgptId)) {
-    userPickedChatgptId = null;
-  }
-  renderChatgptPicker();
+  rebuildPairedView();
 }
 
 async function refreshGoogleArchive() {
   googleArchive = await self.AIQIShared.storage.loadGoogleArchive();
-  if (userPickedGoogleId && !findArchiveEntryById(googleArchive, userPickedGoogleId)) {
-    userPickedGoogleId = null;
-  }
-  renderGooglePicker();
+  rebuildPairedView();
 }
 
 // --- end picker helpers ---------------------------------------------------
@@ -1009,16 +1053,16 @@ async function handleArchiveRetentionChange(value) {
 
 async function handleClearChatgptArchive() {
   await self.AIQIShared.storage.clearChatgptArchive();
+  // Drop any pinned conversation that lived in the now-empty archive.
+  userPickedConversationId = null;
   await refreshChatgptArchive();
-  // Drop any pin that was pointing into the now-empty archive.
-  userPickedChatgptId = null;
   showToast('ChatGPT archive cleared');
 }
 
 async function handleClearGoogleArchive() {
   await self.AIQIShared.storage.clearGoogleArchive();
+  userPickedStandaloneGoogleId = null;
   await refreshGoogleArchive();
-  userPickedGoogleId = null;
   showToast('Google archive cleared');
 }
 
@@ -2650,9 +2694,16 @@ async function openGoogleForQuery(query) {
   // populates without a second user action. Stored alongside the
   // existing PENDING_GOOGLE_QUERY, which stays as-is for back-compat.
   if (googleTab?.id) {
+    // Stage 6: tag the in-flight Google capture with the conversation
+    // that triggered it. background.js stamps these onto the saved
+    // record so the unified picker can group SERPs under their
+    // parent ChatGPT conversation.
     await self.AIQIShared.storage.savePendingGoogleOrchestration({
       tabId: googleTab.id,
       query: cleanQuery,
+      parentConversationId: lastChatgptData?.conversationId || '',
+      parentChatgptCaptureId: lastChatgptData?.id || '',
+      parentTitle: lastChatgptData?.title || lastChatgptData?.latestUserPrompt || '',
       createdAt: Date.now(),
     });
   }
@@ -2671,11 +2722,21 @@ function bindEvents() {
     btn.addEventListener('keydown', handleTabKeydown);
   });
   if (els.refreshBtn) els.refreshBtn.addEventListener('click', inspectCurrentTab);
-  if (els.chatgptPickerSelect) {
-    els.chatgptPickerSelect.addEventListener('change', (e) => handleChatgptPickerChange(e.target.value));
+  if (els.conversationPickerSelect) {
+    els.conversationPickerSelect.addEventListener('change', (e) => handleConversationPickerChange(e.target.value));
   }
-  if (els.googlePickerSelect) {
-    els.googlePickerSelect.addEventListener('change', (e) => handleGooglePickerChange(e.target.value));
+  if (els.standaloneGoogleSelect) {
+    els.standaloneGoogleSelect.addEventListener('change', (e) => handleStandaloneGoogleChange(e.target.value));
+  }
+  if (els.standaloneGoogleToggle && els.standaloneGoogleBody) {
+    els.standaloneGoogleToggle.addEventListener('click', () => {
+      const expanded = els.standaloneGoogleToggle.getAttribute('aria-expanded') === 'true';
+      els.standaloneGoogleToggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+      els.standaloneGoogleBody.hidden = expanded;
+    });
+  }
+  if (els.standaloneGoogleClearBtn) {
+    els.standaloneGoogleClearBtn.addEventListener('click', returnToPairedGoogle);
   }
   if (els.historySearchInput) {
     els.historySearchInput.addEventListener('input', (e) => {
@@ -3000,14 +3061,15 @@ async function init() {
     if (area !== 'local') return;
     const K = self.AIQIShared.STORAGE_KEYS;
     let shouldRender = false;
-    // Live single-slot updates are suppressed while the user is viewing
-    // an archived entry — otherwise a fresh background capture would
-    // yank them back to the latest without warning.
-    if (changes[K.CHATGPT_DATA] && !userPickedChatgptId) {
+    // Live single-slot updates are suppressed when the user has pinned
+    // a non-latest conversation (or is browsing a standalone Google
+    // capture) — otherwise a fresh background capture would yank them
+    // back to the latest without warning.
+    if (changes[K.CHATGPT_DATA] && !userPickedConversationId) {
       lastChatgptData = changes[K.CHATGPT_DATA].newValue || null;
       shouldRender = true;
     }
-    if (changes[K.GOOGLE_DATA] && !userPickedGoogleId) {
+    if (changes[K.GOOGLE_DATA] && !userPickedConversationId && !userPickedStandaloneGoogleId) {
       lastGoogleData = changes[K.GOOGLE_DATA].newValue || null;
       shouldRender = true;
     }

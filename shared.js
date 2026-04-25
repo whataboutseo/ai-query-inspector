@@ -1183,6 +1183,65 @@
     return null;
   }
 
+  /**
+   * Stage 6 — derive a hierarchical view from the two flat archives:
+   *   { conversations: [...], standaloneGoogle: [...] }
+   *
+   * One conversation entry per unique chatgpt.conversationId, holding all
+   * captures of that conversation (newest-first) plus any Google captures
+   * whose `parentConversationId` matches. Google captures with no parent
+   * (manual/legacy) land in `standaloneGoogle`.
+   *
+   * Conversations sort newest-first by their latest ChatGPT snapshot.
+   * Within a conversation, both `chatgptCaptures` and `googleCaptures`
+   * are newest-first so the picker can pick the latest by index 0.
+   */
+  function getPairedConversations({ chatgpt = [], google = [] } = {}) {
+    const ts = (entry) => {
+      const t = entry?.capturedAt ? new Date(entry.capturedAt).getTime() : 0;
+      return Number.isFinite(t) ? t : 0;
+    };
+    const convMap = new Map();
+    for (const entry of chatgpt) {
+      const convId = entry?.conversationId || '';
+      if (!convId) continue;
+      const existing = convMap.get(convId);
+      if (!existing) {
+        convMap.set(convId, {
+          conversationId: convId,
+          title: entry.title || entry.latestUserPrompt || convId,
+          latestChatgptCapture: entry,
+          chatgptCaptures: [entry],
+          googleCaptures: [],
+        });
+      } else {
+        existing.chatgptCaptures.push(entry);
+        if (ts(entry) > ts(existing.latestChatgptCapture)) {
+          existing.latestChatgptCapture = entry;
+          existing.title = entry.title || entry.latestUserPrompt || existing.title;
+        }
+      }
+    }
+    const standaloneGoogle = [];
+    for (const g of google) {
+      const pid = g?.parentConversationId || '';
+      if (pid && convMap.has(pid)) {
+        convMap.get(pid).googleCaptures.push(g);
+      } else {
+        standaloneGoogle.push(g);
+      }
+    }
+    for (const conv of convMap.values()) {
+      conv.googleCaptures.sort((a, b) => ts(b) - ts(a));
+      conv.chatgptCaptures.sort((a, b) => ts(b) - ts(a));
+    }
+    standaloneGoogle.sort((a, b) => ts(b) - ts(a));
+    const conversations = Array.from(convMap.values()).sort(
+      (a, b) => ts(b.latestChatgptCapture) - ts(a.latestChatgptCapture)
+    );
+    return { conversations, standaloneGoogle };
+  }
+
   const api = Object.freeze({
     sanitizeString,
     normalizeDomain,
@@ -1214,6 +1273,7 @@
     fetchSearchResultsInPage,
     isSearchEngineUrl,
     ORCHESTRATION_TTL_MS,
+    getPairedConversations,
   });
 
   root.AIQIShared = api;

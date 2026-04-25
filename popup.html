@@ -217,39 +217,28 @@
          "currently showing" label + mono timestamp chip + switcher
          <select> + optional "Latest" pin. Hidden when its archive is
          empty. Shared across all tabs inside .dash-content. -->
+    <!-- Stage 6: single conversation picker. ChatGPT conversation is the
+         master selection — everything (ChatGPT panel, Google panel paired
+         capture, Compare, History scope) loads off whichever conversation
+         is picked. Standalone Google captures (manual SERP runs with no
+         ChatGPT trigger) live in their own section on the Google panel. -->
     <section class="capture-picker-row" id="capturePickerRow">
-      <div class="capture-picker" id="chatgptPickerCard" hidden>
+      <div class="capture-picker" id="conversationPickerCard" hidden>
         <span class="capture-picker__icon" aria-hidden="true">
-          <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="6.5" stroke="currentColor" stroke-width="1.6"/><path d="M10 6v4l2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg viewBox="0 0 20 20" fill="none"><path d="M3 5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-4 3v-3H5a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
         </span>
         <div class="capture-picker__body">
-          <span class="t-eyebrow">VIEWING CHATGPT CAPTURE</span>
+          <span class="t-eyebrow">VIEWING CONVERSATION</span>
           <div class="capture-picker__row">
-            <span class="capture-picker__current" id="chatgptPickerCurrent">—</span>
-            <span class="capture-picker__chip mono" id="chatgptPickerStamp">—</span>
+            <span class="capture-picker__current" id="conversationPickerCurrent">—</span>
+            <span class="capture-picker__chip mono" id="conversationPickerStamp">—</span>
+            <span class="capture-picker__chip" id="conversationPickerPaired" hidden>—</span>
           </div>
-          <p class="capture-picker__note" id="chatgptPickerNote" hidden></p>
+          <p class="capture-picker__note" id="conversationPickerNote" hidden></p>
         </div>
         <label class="capture-picker__switch">
-          <span class="visually-hidden">Switch ChatGPT capture</span>
-          <select id="chatgptPickerSelect" class="picker-select" aria-label="Select a captured ChatGPT conversation"></select>
-        </label>
-      </div>
-      <div class="capture-picker" id="googlePickerCard" hidden>
-        <span class="capture-picker__icon" aria-hidden="true">
-          <svg viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.6"/><path d="m13.5 13.5 3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        </span>
-        <div class="capture-picker__body">
-          <span class="t-eyebrow">VIEWING GOOGLE CAPTURE</span>
-          <div class="capture-picker__row">
-            <span class="capture-picker__current" id="googlePickerCurrent">—</span>
-            <span class="capture-picker__chip mono" id="googlePickerStamp">—</span>
-          </div>
-          <p class="capture-picker__note" id="googlePickerNote" hidden></p>
-        </div>
-        <label class="capture-picker__switch">
-          <span class="visually-hidden">Switch Google capture</span>
-          <select id="googlePickerSelect" class="picker-select" aria-label="Select a captured SERP"></select>
+          <span class="visually-hidden">Switch conversation</span>
+          <select id="conversationPickerSelect" class="picker-select" aria-label="Select a captured ChatGPT conversation"></select>
         </label>
       </div>
     </section>
@@ -433,6 +422,33 @@
     </section>
 
     <section id="panelGoogle" class="tab-panel hidden" role="tabpanel" aria-labelledby="tabGoogle" tabindex="0">
+      <!-- Stage 6: standalone Google captures — SERPs the user grabbed
+           manually with no ChatGPT trigger (or imported from before
+           pairing). Hidden when none exist; the toggle reveals a small
+           inline picker to load any of them into the panel below. -->
+      <div class="standalone-bar" id="standaloneGoogleBar" hidden>
+        <button class="standalone-bar__toggle" id="standaloneGoogleToggle" type="button" aria-expanded="false" aria-controls="standaloneGoogleBody">
+          <span class="standalone-bar__icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="none"><path d="M3 7h14M3 11h14M3 15h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </span>
+          <span class="standalone-bar__label">
+            <span id="standaloneGoogleLabel">Show standalone Google captures</span>
+            <span class="standalone-bar__count" id="standaloneGoogleCount">0</span>
+          </span>
+          <span class="standalone-bar__chevron" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="none"><path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </button>
+        <div class="standalone-bar__body" id="standaloneGoogleBody" hidden>
+          <p class="standalone-bar__note">SERPs without a paired ChatGPT conversation. Selecting one loads it into the panel below; pick a conversation again to return.</p>
+          <div class="standalone-bar__row">
+            <label class="visually-hidden" for="standaloneGoogleSelect">Standalone Google capture</label>
+            <select id="standaloneGoogleSelect" class="picker-select"></select>
+            <button id="standaloneGoogleClearBtn" class="btn btn-outline" type="button" hidden>Return to paired</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Stage 5.4 Google recipe — two states:
            1. empty (#googleEmptyState): hero + preview cards, shown when
               no SERP has been captured yet.

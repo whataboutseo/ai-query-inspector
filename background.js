@@ -119,6 +119,13 @@ async function maybeOrchestrateGoogleCapture(tabId, url) {
       ...parsed,
       pageUrl: result.pageUrl || url || '',
       browser: 'Background capture',
+      // Stage 6: pair this SERP capture to the ChatGPT conversation that
+      // triggered the orchestration. Empty when the user opened a SERP
+      // tab manually (no ChatGPT trigger) — those become standalone
+      // captures in the picker.
+      parentConversationId: orch.parentConversationId || '',
+      parentChatgptCaptureId: orch.parentChatgptCaptureId || '',
+      parentTitle: orch.parentTitle || '',
     };
     await storage.saveGoogleData(record);
     const settings = await getSettings();
