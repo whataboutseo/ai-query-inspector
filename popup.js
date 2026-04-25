@@ -625,15 +625,17 @@ function renderQueryExpansion(data) {
 
   const queries = data?.queries || [];
   const turns = Array.isArray(data?.conversationTurns) ? data.conversationTurns : [];
-  const hasRichTurns = turns.length > 1 && turns.some((t) => (t.queries || []).length > 0);
+  const hasAnyQueries = turns.some((t) => (t.queries || []).length > 0) || queries.length > 0;
+  if (!hasAnyQueries) return;
 
-  // Hide the whole Fan-out tree card in single-turn mode — the prompt is
-  // already in the General information card and the queries are already
-  // listed in the Fan-out queries card below, so a tree view of one turn
-  // would just be visual noise.
-  const card = document.getElementById('queryExpansionCard');
-  if (card) card.classList.toggle('hidden', !hasRichTurns);
-  if (!hasRichTurns) return;
+  // Synthesize a single-turn entry from the flat queries when the parser
+  // didn't produce a turns array (older payload shapes / single-turn convos).
+  // Stage 5.9.7 retired the duplicate flat .query-item list, so the tree
+  // is now the only place fan-out queries surface — render it for any turn
+  // count, including 1.
+  const turnsToRender = turns.length
+    ? turns
+    : [{ index: 1, prompt: data?.latestUserPrompt || '', queries, queryCount: queries.length, citedSourceCount: data?.citedSources || 0, uniqueSiteCount: (data?.uniqueDomains || []).length }];
 
   els.queryExpansionWrap.className = 'expansion-tree';
 
@@ -666,9 +668,9 @@ function renderQueryExpansion(data) {
     container.appendChild(list);
   };
 
-  // Multi-turn: one expansion-turn block per turn, each with a pill
-  // header, prompt, and numbered fan-out query list.
-  turns.forEach((turn) => {
+  // One expansion-turn block per turn, each with a pill header, prompt,
+  // and numbered fan-out query list. Single-turn renders the same way.
+  turnsToRender.forEach((turn) => {
     const turnNode = document.createElement('div');
     turnNode.className = 'expansion-turn';
 
