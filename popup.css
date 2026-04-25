@@ -364,6 +364,23 @@ body.light-mode .count-badge {
   box-shadow: var(--shadow-1);
 }
 .capture-picker[hidden] { display: none; }
+
+/* Stage 5.9.4 — context-aware picker visibility.
+   ChatGPT tab → only the ChatGPT picker; Google tab → only the
+   Google picker; Compare → both; History → neither (the user is
+   browsing saved pairs there, not selecting a live capture). */
+body[data-active-view="chatgpt"] #googlePickerCard,
+body[data-active-view="google"] #chatgptPickerCard,
+body[data-active-view="history"] .capture-picker {
+  display: none !important;
+}
+/* When only one picker is visible, single-column the row so the
+   visible picker grows to full width instead of getting clipped to
+   a 50% column on a 2-col grid. */
+body[data-active-view="chatgpt"] .capture-picker-row,
+body[data-active-view="google"] .capture-picker-row {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
 .capture-picker::before {
   content: "";
   position: absolute;

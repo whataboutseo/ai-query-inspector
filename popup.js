@@ -588,6 +588,11 @@ function switchTab(tabName) {
     btn.setAttribute('tabindex', isActive ? '0' : '-1');
   });
   Object.entries(els.tabPanels).forEach(([name, panel]) => panel.classList.toggle('hidden', name !== tabName));
+  // Stage 5.9.4: drive picker visibility off the active tab. CSS rules
+  // hide the ChatGPT picker on the Google tab, the Google picker on
+  // the ChatGPT tab, both on History (where the user is browsing
+  // saved pairs, not picking a live capture).
+  document.body.dataset.activeView = tabName;
   saveLocalState().catch(() => {});
 }
 
