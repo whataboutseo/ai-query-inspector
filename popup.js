@@ -669,22 +669,38 @@ function renderQueryExpansion(data) {
   };
 
   // One expansion-turn block per turn, each with a pill header, prompt,
-  // and numbered fan-out query list. Single-turn renders the same way.
+  // and numbered fan-out query list. Each turn is independently collapsible
+  // — click the head row to toggle. The wiring is matched to the section
+  // pattern (`.section[data-collapse] .section-head` in popup.js bindEvents)
+  // and is delegated below this loop to one document-level listener so the
+  // handler survives renderer reruns without leaking listeners.
   turnsToRender.forEach((turn) => {
     const turnNode = document.createElement('div');
     turnNode.className = 'expansion-turn';
+    turnNode.dataset.turnCollapse = '1';
 
     const turnHead = document.createElement('div');
     turnHead.className = 'expansion-turn-head';
+    turnHead.setAttribute('role', 'button');
+    turnHead.setAttribute('tabindex', '0');
+    turnHead.setAttribute('aria-expanded', 'true');
     const turnPill = document.createElement('span');
     turnPill.className = 'expansion-turn-pill';
     turnPill.textContent = `Turn ${turn.index}`;
     const turnMeta = document.createElement('span');
     turnMeta.className = 'expansion-turn-meta';
     turnMeta.textContent = `${turn.queryCount || (turn.queries || []).length} queries · ${turn.citedSourceCount || 0} cited · ${turn.uniqueSiteCount || 0} sites`;
+    const turnChevron = document.createElement('span');
+    turnChevron.className = 'expansion-turn-chevron';
+    turnChevron.setAttribute('aria-hidden', 'true');
+    turnChevron.innerHTML = '<svg viewBox="0 0 20 20" fill="none"><path d="m6 8 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     turnHead.appendChild(turnPill);
     turnHead.appendChild(turnMeta);
+    turnHead.appendChild(turnChevron);
     turnNode.appendChild(turnHead);
+
+    const turnBody = document.createElement('div');
+    turnBody.className = 'expansion-turn-body';
 
     if (turn.prompt) {
       const promptLabel = document.createElement('div');
@@ -693,16 +709,17 @@ function renderQueryExpansion(data) {
       const promptBox = document.createElement('div');
       promptBox.className = 'expansion-root-title';
       promptBox.textContent = turn.prompt;
-      turnNode.appendChild(promptLabel);
-      turnNode.appendChild(promptBox);
+      turnBody.appendChild(promptLabel);
+      turnBody.appendChild(promptBox);
     }
 
     const fanoutLabel = document.createElement('div');
     fanoutLabel.className = 'expansion-node-label';
     fanoutLabel.textContent = (turn.queries || []).length ? 'Fan-out queries' : 'No fan-out detected for this turn';
-    turnNode.appendChild(fanoutLabel);
+    turnBody.appendChild(fanoutLabel);
 
-    if ((turn.queries || []).length) appendQueryList(turnNode, turn.queries);
+    if ((turn.queries || []).length) appendQueryList(turnBody, turn.queries);
+    turnNode.appendChild(turnBody);
     tree.appendChild(turnNode);
   });
 
@@ -2775,6 +2792,33 @@ function bindEvents() {
       if (e.target.closest('button')) return;
       head.parentElement.classList.toggle('collapsed');
     });
+  });
+  // Stage 5.10: per-turn collapse inside the Fan-out tree. Delegated to
+  // document because .expansion-turn nodes are re-created on every
+  // renderChatgpt() pass — a per-element listener would either leak or
+  // miss new turns. The handler matches both the head row and any non-
+  // button descendants.
+  const toggleTurn = (turnEl) => {
+    const collapsed = turnEl.classList.toggle('collapsed');
+    const head = turnEl.querySelector('.expansion-turn-head');
+    if (head) head.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  };
+  document.addEventListener('click', (e) => {
+    const head = e.target.closest('.expansion-turn-head');
+    if (!head) return;
+    if (e.target.closest('button')) return;
+    const turnEl = head.parentElement;
+    if (!turnEl?.matches('.expansion-turn[data-turn-collapse]')) return;
+    toggleTurn(turnEl);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const head = e.target.closest('.expansion-turn-head');
+    if (!head) return;
+    const turnEl = head.parentElement;
+    if (!turnEl?.matches('.expansion-turn[data-turn-collapse]')) return;
+    e.preventDefault();
+    toggleTurn(turnEl);
   });
   els.openGoogleManualBtn.addEventListener('click', async () => {
     const manual = await openPromptModal({
