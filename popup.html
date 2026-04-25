@@ -936,6 +936,31 @@
           </div>
         </div>
 
+        <!-- Stage 4.6: full backup / restore between machines plus
+             single-conversation raw-payload export. Snapshot bundles
+             every captured / derived key (archives, history, settings,
+             theme); pending / orchestration state is excluded. -->
+        <div class="settings-row settings-row--actions">
+          <div class="settings-row__copy">
+            <span class="settings-row__label">Backup &amp; transfer</span>
+            <span class="settings-row__hint">Export every capture, archive entry, comparison, and setting on this device as a single JSON file — drop it onto another machine via Import to mirror your data.</span>
+          </div>
+          <div class="settings-row__actions">
+            <button id="exportSnapshotBtn" class="btn btn-outline" type="button">Export all data</button>
+            <button id="importSnapshotBtn" class="btn btn-outline" type="button">Import data…</button>
+          </div>
+        </div>
+
+        <div class="settings-row settings-row--actions">
+          <div class="settings-row__copy">
+            <span class="settings-row__label">Raw ChatGPT payload</span>
+            <span class="settings-row__hint">Download the original ChatGPT conversation JSON for the currently displayed capture. Useful for re-parsing in a future build, or for offline inspection. Falls back to the parsed snapshot when the capture pre-dates raw retention.</span>
+          </div>
+          <div class="settings-row__actions">
+            <button id="exportRawPayloadBtn" class="btn btn-outline" type="button">Download raw payload</button>
+          </div>
+        </div>
+
         <!-- Stage 6.10: full reset for testing. Wipes single-slot data,
              archives, comparison history, and pending orchestrations.
              Preserves user prefs (auto-capture, retention caps, theme). -->

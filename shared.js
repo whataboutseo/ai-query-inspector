@@ -1268,6 +1268,67 @@
     clearGoogleArchive()  { return this.remove(STORAGE_KEYS.GOOGLE_ARCHIVE); },
 
     /**
+     * Stage 4.6: full backup/restore between machines.
+     *
+     * `exportSnapshot()` returns a JSON-serialisable bundle of every
+     * captured / derived key (single-slot data, archives, history,
+     * fingerprint) plus settings + theme. Schema version is stamped so
+     * future imports can migrate forward. The bundle is what the
+     * settings-modal "Export all data" button writes to disk.
+     *
+     * `importSnapshot(bundle, options)` validates the shape and writes
+     * the keys back. Default mode REPLACES the local data wholesale —
+     * caller is expected to confirm with the user first. Pending /
+     * orchestration keys are NOT exported (transient by nature).
+     */
+    AIQI_EXPORT_VERSION: 1,
+    async exportSnapshot() {
+      const keys = [
+        STORAGE_KEYS.CHATGPT_DATA,
+        STORAGE_KEYS.GOOGLE_DATA,
+        STORAGE_KEYS.CHATGPT_ARCHIVE,
+        STORAGE_KEYS.GOOGLE_ARCHIVE,
+        STORAGE_KEYS.HISTORY,
+        STORAGE_KEYS.LAST_HISTORY_FINGERPRINT,
+        STORAGE_KEYS.THEME_MODE,
+        'aiqiSettings',
+      ];
+      const data = await this.get(keys);
+      return {
+        kind: 'aiqi-snapshot',
+        version: this.AIQI_EXPORT_VERSION,
+        exportedAt: new Date().toISOString(),
+        data,
+      };
+    },
+    async importSnapshot(bundle) {
+      if (!bundle || typeof bundle !== 'object') throw new Error('Invalid bundle: expected JSON object.');
+      if (bundle.kind !== 'aiqi-snapshot') throw new Error('Invalid bundle: missing aiqi-snapshot marker.');
+      if (typeof bundle.version !== 'number') throw new Error('Invalid bundle: missing version.');
+      if (bundle.version > this.AIQI_EXPORT_VERSION) throw new Error(`Bundle version ${bundle.version} is newer than this extension supports (${this.AIQI_EXPORT_VERSION}).`);
+      if (!bundle.data || typeof bundle.data !== 'object') throw new Error('Invalid bundle: missing data.');
+      // Whitelist the keys we accept so a tampered bundle can't sneak
+      // unknown chrome.storage entries onto disk.
+      const allowed = new Set([
+        STORAGE_KEYS.CHATGPT_DATA, STORAGE_KEYS.GOOGLE_DATA,
+        STORAGE_KEYS.CHATGPT_ARCHIVE, STORAGE_KEYS.GOOGLE_ARCHIVE,
+        STORAGE_KEYS.HISTORY, STORAGE_KEYS.LAST_HISTORY_FINGERPRINT,
+        STORAGE_KEYS.THEME_MODE, 'aiqiSettings',
+      ]);
+      const patch = {};
+      for (const [k, v] of Object.entries(bundle.data)) {
+        if (!allowed.has(k)) continue;
+        if (v === undefined) continue;
+        patch[k] = v;
+      }
+      // Wipe before write so a smaller incoming archive doesn't end up
+      // merged with stale entries from the prior dataset.
+      await this.clearAllData();
+      await this.set(patch);
+      return { keysWritten: Object.keys(patch).length };
+    },
+
+    /**
      * Stage 6.10: factory-reset for testing. Wipes every captured /
      * derived key — single-slot data, archives, comparison history,
      * fingerprints, and any in-flight pending* orchestration state.

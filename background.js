@@ -65,6 +65,14 @@ async function maybeCaptureTab(tabId, url) {
         capturedAt: new Date().toISOString(),
       });
       if (parsed) {
+        // Stage 4.6: attach the raw payload so future parsers can
+        // re-extract from disk. Skipped if the entry would balloon past
+        // ~150 KB; chrome.storage.local quota is 10 MB and an archive of
+        // 200 conversations each carrying a 50-100 KB payload is fine.
+        try {
+          const rawSize = JSON.stringify(result.payload).length;
+          if (rawSize <= 150_000) parsed.rawPayload = result.payload;
+        } catch { /* non-serialisable; skip */ }
         await storage.saveChatgptData(parsed);
         // skipIfUnchanged avoids spamming the archive when chrome.tabs
         // onUpdated fires multiple `complete` events for a single page

@@ -170,6 +170,9 @@ const els = {
   clearChatgptArchiveBtn: document.getElementById('clearChatgptArchiveBtn'),
   clearGoogleArchiveBtn: document.getElementById('clearGoogleArchiveBtn'),
   resetAllDataBtn: document.getElementById('resetAllDataBtn'),
+  exportSnapshotBtn: document.getElementById('exportSnapshotBtn'),
+  importSnapshotBtn: document.getElementById('importSnapshotBtn'),
+  exportRawPayloadBtn: document.getElementById('exportRawPayloadBtn'),
 
   // Stage 6 unified conversation picker (replaces the Stage 4.2 dual
   // ChatGPT + Google selects). One picker drives every panel — picking
@@ -1203,6 +1206,115 @@ async function handleClearGoogleArchive() {
   userPickedStandaloneGoogleId = null;
   await refreshGoogleArchive();
   showToast('Google archive cleared');
+}
+
+// --- Stage 4.6 raw payload + full export/import ---------------------------
+
+// Storing the raw ChatGPT payload alongside the parsed snapshot lets a
+// future parser (say 7.x) re-extract from on-disk archive entries
+// without a re-capture. Skipped silently if the payload would push the
+// entry above ~150 KB so chrome.storage.local doesn't approach its
+// 10 MB quota with a 200-entry archive.
+const RAW_PAYLOAD_MAX_BYTES = 150_000;
+function attachRawPayloadIfRoom(record, payload) {
+  if (!record || !payload) return;
+  try {
+    const size = JSON.stringify(payload).length;
+    if (size <= RAW_PAYLOAD_MAX_BYTES) record.rawPayload = payload;
+  } catch { /* non-serialisable; skip silently */ }
+}
+
+/**
+ * Stage 4.6: download the current ChatGPT capture's raw payload as a
+ * JSON file. Falls back to the parsed snapshot when no rawPayload was
+ * retained (older captures or ones over the size guard).
+ */
+function exportCurrentChatgptRawPayload() {
+  if (!lastChatgptData) return setStatus('No ChatGPT capture loaded.', 'error');
+  const slug = slugify(lastChatgptData.title || lastChatgptData.latestUserPrompt || lastChatgptData.conversationId || 'chatgpt-capture');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  if (lastChatgptData.rawPayload) {
+    downloadFile(`${slug}-raw-${stamp}.json`, JSON.stringify(lastChatgptData.rawPayload, null, 2), 'application/json');
+    showToast('Raw payload exported', 'ok');
+  } else {
+    // Fall back to parsed snapshot; user gets a JSON they can still
+    // re-import or inspect, just without the original ChatGPT shape.
+    downloadFile(`${slug}-parsed-${stamp}.json`, JSON.stringify(lastChatgptData, null, 2), 'application/json');
+    showToast('No raw payload retained — exported parsed snapshot instead.', 'warn');
+  }
+}
+
+/**
+ * Stage 4.6: bundle every captured / derived key into one JSON file
+ * for backup or transfer between machines. Settings + theme included;
+ * pending / orchestration keys excluded (transient).
+ */
+async function exportFullSnapshot() {
+  try {
+    const bundle = await self.AIQIShared.storage.exportSnapshot();
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    downloadFile(`aiqi-snapshot-${stamp}.json`, JSON.stringify(bundle, null, 2), 'application/json');
+    const counts = bundle.data || {};
+    const cgArc = (counts.chatgptInspectorArchive || []).length;
+    const ggArc = (counts.googleInspectorArchive || []).length;
+    const hist = (counts.comparisonHistory || []).length;
+    showToast(`Exported · ${cgArc} chats · ${ggArc} SERPs · ${hist} comparisons`, 'ok');
+  } catch (error) {
+    setStatus(`Export failed: ${error?.message || 'Unknown error'}`, 'error');
+  }
+}
+
+/**
+ * Stage 4.6: import a previously-exported snapshot. Replaces local
+ * data wholesale after a confirm. Re-hydrates in-memory caches and
+ * re-paints every panel before reporting success.
+ */
+async function importFullSnapshot() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json,.json';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  const file = await new Promise((resolve) => {
+    input.addEventListener('change', () => resolve(input.files?.[0] || null));
+    input.click();
+  });
+  input.remove();
+  if (!file) return;
+  let bundle;
+  try {
+    const text = await file.text();
+    bundle = JSON.parse(text);
+  } catch (error) {
+    return setStatus(`Could not read the file: ${error?.message || 'invalid JSON'}.`, 'error');
+  }
+  const cgArc = bundle?.data?.chatgptInspectorArchive?.length || 0;
+  const ggArc = bundle?.data?.googleInspectorArchive?.length || 0;
+  const hist = bundle?.data?.comparisonHistory?.length || 0;
+  const confirmed = await openConfirmModal({
+    title: 'Replace local data with this snapshot?',
+    message: `The file contains ${cgArc} ChatGPT captures, ${ggArc} SERP captures, and ${hist} saved comparisons. Importing erases everything currently on this device. This cannot be undone.`,
+    okLabel: 'Replace everything',
+    cancelLabel: 'Cancel',
+    danger: true,
+  });
+  if (!confirmed) return;
+  try {
+    const result = await self.AIQIShared.storage.importSnapshot(bundle);
+    // Re-hydrate every in-memory mirror and repaint.
+    await loadLocalState();
+    await refreshChatgptArchive();
+    await refreshGoogleArchive();
+    await hydrateSettingsUI();
+    if (typeof renderChatgpt === 'function') renderChatgpt(lastChatgptData);
+    if (typeof renderGoogle === 'function') renderGoogle(lastGoogleData);
+    if (typeof renderCombined === 'function') renderCombined();
+    if (typeof renderHistory === 'function') renderHistory();
+    if (typeof populatePopup === 'function') populatePopup();
+    showToast(`Imported snapshot · ${result.keysWritten} keys`, 'ok');
+  } catch (error) {
+    setStatus(`Import failed: ${error?.message || 'Unknown error'}`, 'error');
+  }
 }
 
 /**
@@ -2990,6 +3102,11 @@ async function inspectCurrentTab() {
       if (!result) return setStatus('No data returned from the page.', 'error');
       if (result.error) return setStatus(result.error, 'error');
       lastChatgptData = { ...parseChatgptPayload(result.payload), conversationId: result.conversationId, pageUrl: result.pageUrl || tab.url || '', browser: getBrowserLabel(), capturedAt: new Date().toISOString() };
+      // Stage 4.6: keep a copy of the raw ChatGPT payload alongside the
+      // parsed snapshot so future parser improvements (6.x → 7.x) can
+      // re-extract from disk. Skipped if the payload would push the
+      // entry above ~150 KB to keep chrome.storage.local quota safe.
+      attachRawPayloadIfRoom(lastChatgptData, result.payload);
       const archivedChatgpt = await self.AIQIShared.storage.appendChatgptCapture(lastChatgptData, { cap: Number(currentSettings?.archiveRetention) || undefined });
       if (archivedChatgpt?.id) lastChatgptData.id = archivedChatgpt.id;
       await self.AIQIShared.storage.savePendingChatgptSnapshot(lastChatgptData);
@@ -3184,6 +3301,15 @@ function bindEvents() {
   }
   if (els.resetAllDataBtn) {
     els.resetAllDataBtn.addEventListener('click', handleResetAllData);
+  }
+  if (els.exportSnapshotBtn) {
+    els.exportSnapshotBtn.addEventListener('click', exportFullSnapshot);
+  }
+  if (els.importSnapshotBtn) {
+    els.importSnapshotBtn.addEventListener('click', importFullSnapshot);
+  }
+  if (els.exportRawPayloadBtn) {
+    els.exportRawPayloadBtn.addEventListener('click', exportCurrentChatgptRawPayload);
   }
   if (els.openFullPageBtn) els.openFullPageBtn.addEventListener('click', async () => {
     const currentTab = await getInspectionTargetTab();
