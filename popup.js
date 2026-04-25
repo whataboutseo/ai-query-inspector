@@ -83,7 +83,6 @@ const els = {
   fanoutCount: document.getElementById('fanoutCount'),
   sourceCount: document.getElementById('sourceCount'),
   siteCount: document.getElementById('siteCount'),
-  utmCoverage: document.getElementById('utmCoverage'),
   retrievalIntensityValue: document.getElementById('retrievalIntensityValue'),
   retrievalIntensityMeta: document.getElementById('retrievalIntensityMeta'),
   latestPromptText: document.getElementById('latestPromptText'),
@@ -96,14 +95,11 @@ const els = {
   promptIntentBadge: document.getElementById('promptIntentBadge'),
   promptIntentBadgeText: document.getElementById('promptIntentBadgeText'),
   searchOriginConfidence: document.getElementById('searchOriginConfidence'),
-  fanoutsList: document.getElementById('fanoutsList'),
+  // Stage 6.11: dropped #fanoutsList/#sitesWrap/#turnsWrap/#utmCoverage
+  // hidden back-compat containers. The visible renderers
+  // (renderQueryExpansion, renderCitationStrength, renderSources) cover
+  // every export path now that 6.9 canonicalised the source pipeline.
   fanoutsEmpty: document.getElementById('fanoutsEmpty'),
-  sitesWrap: document.getElementById('sitesWrap'),
-  sitesEmpty: document.getElementById('sitesEmpty'),
-  sitesSummary: document.getElementById('sitesSummary'),
-  turnsWrap: document.getElementById('turnsWrap'),
-  turnsEmpty: document.getElementById('turnsEmpty'),
-  turnsSummary: document.getElementById('turnsSummary'),
   sourcesWrap: document.getElementById('sourcesWrap'),
   sourcesEmpty: document.getElementById('sourcesEmpty'),
   sourcesSummary: document.getElementById('sourcesSummary'),
@@ -1379,7 +1375,6 @@ function renderChatgpt(data) {
   els.fanoutCount.textContent = String(data?.queries?.length || 0);
   els.sourceCount.textContent = String(data?.citedSources || 0);
   els.siteCount.textContent = String(data?.uniqueDomains?.length || 0);
-  if (els.utmCoverage) els.utmCoverage.textContent = `${data?.utmCount || 0} / ${data?.totalUrls || 0}`;
   els.retrievalIntensityValue.textContent = `${data?.queries?.length || 0} / ${data?.citedSources || 0} / ${data?.uniqueDomains?.length || 0}`;
   els.retrievalIntensityMeta.textContent = 'Fan-outs / citations / sites';
 
@@ -1418,136 +1413,21 @@ function renderChatgpt(data) {
     }
   }
 
-  // Stage 5.9.7: dropped the duplicate flat .query-item list. The
-  // .expansion-tree below shows the same fan-outs grouped by turn —
-  // no need to render both. Kept a no-op clear for back-compat.
-  if (els.fanoutsList) {
-    els.fanoutsList.innerHTML = '';
-    els.fanoutsList.hidden = true;
-  }
-
+  // Stage 6.11: dropped legacy hidden-container renders. The visible
+  // dashboard sections (renderQueryExpansion + renderCitationStrength +
+  // renderSources) cover every export path; the duplicate writes into
+  // #fanoutsList/#sitesWrap/#turnsWrap were back-compat scaffolding
+  // since 5.x and have no remaining consumers post-6.9.
   renderQueryExpansion(data);
   renderCitationStrength(data);
-
-  els.sitesWrap.innerHTML = '';
-  const domainCounts = data?.domainCounts || [];
-  els.sitesEmpty.classList.toggle('hidden', domainCounts.length > 0);
-  els.sitesWrap.classList.toggle('hidden', domainCounts.length === 0);
-  els.sitesSummary.classList.toggle('hidden', domainCounts.length === 0);
-  els.sitesSummary.textContent = domainCounts.length ? `${data.citedSources} total citations across ${data.uniqueDomains.length} sites` : '';
-
-  domainCounts.forEach(({ domain, count }) => {
-    const row = document.createElement('div');
-    row.className = 'site-row';
-    const name = document.createElement('div');
-    name.className = 'site-name';
-    name.textContent = domain;
-    const meta = document.createElement('div');
-    meta.className = 'site-meta';
-    const countPill = document.createElement('span');
-    countPill.className = 'site-count';
-    countPill.textContent = `${count} ${count === 1 ? 'hit' : 'hits'}`;
-    meta.appendChild(countPill);
-    row.appendChild(name);
-    row.appendChild(meta);
-    els.sitesWrap.appendChild(row);
-  });
-
-  renderConversationTurns(data);
   renderSources(data);
 }
 
 
-function renderConversationTurns(data) {
-  const turns = data?.conversationTurns || [];
-  if (!els.turnsWrap) return;
-  els.turnsWrap.innerHTML = '';
-  els.turnsEmpty.classList.toggle('hidden', turns.length > 0);
-  els.turnsWrap.classList.toggle('hidden', turns.length === 0);
-  els.turnsSummary.classList.toggle('hidden', turns.length === 0);
-  els.turnsSummary.textContent = turns.length ? `${turns.length} prompt turn${turns.length === 1 ? '' : 's'} detected` : '';
-  turns.forEach((turn) => {
-    const details = document.createElement('details');
-    details.className = 'turn-card';
-    details.open = !isFullPage && turn.index === turns.length;
-    const summary = document.createElement('summary');
-    summary.className = 'turn-summary';
-    const left = document.createElement('div');
-    const title = document.createElement('div');
-    title.className = 'turn-title';
-    title.textContent = `Prompt ${turn.index}: ${turn.prompt}`;
-    left.appendChild(title);
-
-    const meta = document.createElement('div');
-    meta.className = 'turn-meta';
-    [
-      `${turn.queryCount || 0} fan-outs`,
-      `${turn.citedSourceCount || 0} cited sources`,
-      `${turn.uniqueSourceCount || 0} sources`,
-      `${turn.uniqueSiteCount || 0} sites`
-    ].forEach((text) => {
-      const pill = document.createElement('span');
-      pill.className = 'turn-pill';
-      pill.textContent = text;
-      meta.appendChild(pill);
-    });
-    left.appendChild(meta);
-
-    const right = document.createElement('span');
-    right.className = 'turn-pill';
-    right.textContent = details.open ? 'Expanded' : 'Collapsed';
-    details.addEventListener('toggle', () => { right.textContent = details.open ? 'Expanded' : 'Collapsed'; });
-    summary.appendChild(left);
-    summary.appendChild(right);
-    details.appendChild(summary);
-
-    const body = document.createElement('div');
-    body.className = 'turn-body';
-
-    const queries = document.createElement('div');
-    queries.className = 'turn-subgrid';
-    queries.innerHTML = `<div class="expansion-label">Queries for this turn</div>`;
-    const qList = document.createElement('div');
-    qList.className = 'turn-list';
-    (turn.queries || []).forEach((q) => {
-      const row = document.createElement('div');
-      row.className = 'turn-list-item';
-      row.textContent = q.domains?.length ? `${q.q} [${q.domains.join(', ')}]` : q.q;
-      qList.appendChild(row);
-    });
-    if (!turn.queries?.length) {
-      const row = document.createElement('div');
-      row.className = 'turn-list-item';
-      row.textContent = 'No explicit fan-out queries captured for this turn.';
-      qList.appendChild(row);
-    }
-    queries.appendChild(qList);
-
-    const sources = document.createElement('div');
-    sources.className = 'turn-subgrid';
-    sources.innerHTML = `<div class="expansion-label">Sources for this turn</div>`;
-    const sList = document.createElement('div');
-    sList.className = 'turn-list';
-    (turn.sources || []).slice(0, 8).forEach((s) => {
-      const row = document.createElement('div');
-      row.className = 'turn-list-item';
-      row.textContent = `${s.statusLabel || 'Source'} · ${s.domain || 'source'}${s.title ? ' · ' + s.title : ''}`;
-      sList.appendChild(row);
-    });
-    if (!turn.sources?.length) {
-      const row = document.createElement('div');
-      row.className = 'turn-list-item';
-      row.textContent = 'No source objects captured for this turn.';
-      sList.appendChild(row);
-    }
-    sources.appendChild(sList);
-
-    body.appendChild(queries);
-    body.appendChild(sources);
-    details.appendChild(body);
-    els.turnsWrap.appendChild(details);
-  });
-}
+// Stage 6.11: removed renderConversationTurns — wrote into the
+// retired #turnsWrap hidden container. The visible Fan-out tree
+// (renderQueryExpansion → .expansion-tree) shows the same per-turn
+// breakdown including queries, cited/considered/site counts.
 
 function renderSources(data) {
   const sources = data?.sources || [];

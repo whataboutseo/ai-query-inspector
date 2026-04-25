@@ -1689,32 +1689,6 @@ body.light-mode .tabbar {
   color: #0f1b4d;
 }
 
-body.light-mode .card,
-body.light-mode .tabbar,
-body.light-mode .model-badge,
-body.light-mode .origin-badge,
-body.light-mode .site-row,
-body.light-mode .result-row,
-body.light-mode .result-card,
-body.light-mode .history-card,
-body.light-mode .query-item,
-body.light-mode .strength-row,
-/* Stage 5.9.6: nuked the old blue-accent palette body.light-mode
-   block. Most rules targeted dead classes (.hero, .tab-btn,
-   .refresh-btn, .primary-btn, .app, .tabbar — all gone since 5.2).
-   The ones still live (.icon-btn, .ghost-btn, .empty-state,
-   .eyebrow, .metric-label, etc.) were forcibly painting buttons
-   and copy in dark navy blue (#2140a8 / #13255d / #6172a7 / #5f6f9d
-   / #3d4e86), fighting the design-system tokens. The design system
-   handles light theme natively via tokens.css :root — no override
-   needed for the migrated components. */
-
-/* Stage 5.9.5: removed legacy `body.light-mode a { color: #2140a8 }`
-   override — that was a relic of the old blue-accent palette. With
-   it gone, anchors fall through to inherit from their parent (the
-   design-system pattern), so .compare-cta-secondary's muted ink-3
-   color renders correctly instead of bright blue. */
-
 .turns-wrap {
   display: grid;
   gap: 12px;
