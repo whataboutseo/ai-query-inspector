@@ -697,28 +697,28 @@ body[data-active-view="history"] .capture-picker {
 .small-print p { margin: 0 0 10px; }
 .small-print p:last-child { margin-bottom: 0; }
 .hidden { display: none !important; }
-.status-ok { color: #d9ffe9; }
+/* Stage 6.10: legacy `.toast` override (`position: fixed; bottom: 16px;`)
+   removed so the design-system `.toast` rule (top-centre pill with 2.8s
+   auto-fade) wins. Keeping the colour utility classes since they still
+   describe semantic state for downstream callers. */
+.status-ok { color: var(--accent, #1f9680); }
 .status-warn { color: #ffe6b0; }
 .status-error { color: #ffd1d1; }
+/* Toast — pin to viewport (not document) so it works in both popup
+   (position:relative ancestor) and full-page (no positioned ancestor)
+   contexts. The design-system base uses position:absolute which falls
+   back to html in full-page and would scroll out of view. z-index sits
+   above modals so error toasts can appear over a dialog. */
 .toast {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 999;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(9, 14, 28, 0.95);
-  border: 1px solid rgba(120,168,255,0.3);
-  color: var(--text);
-  box-shadow: var(--shadow);
-  font-size: 13px;
-  font-weight: 700;
-  animation: slideUp .18s ease-out;
+  position: fixed !important;
+  z-index: 1100;
 }
-@keyframes slideUp {
-  from { transform: translateY(8px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
+/* Toast colour variants — neutral default (design-system base is ink),
+   accent for ok, warn for warn, danger for error. Tokens only (Rule 1).
+   Specificity (0,2,0) beats the design-system base (0,1,0). */
+.toast[data-kind="ok"]    { background: var(--accent); color: #fff; }
+.toast[data-kind="warn"]  { background: var(--warn); color: #fff; }
+.toast[data-kind="error"] { background: var(--danger); color: #fff; }
 
 /* Search-origin-card min-height reset — handled above in the
    grid-column: span 2 block. Leave this rule in place so external

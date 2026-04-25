@@ -208,9 +208,12 @@
     </nav>
 
     <div class="dash-content">
-    <section id="statusCard" class="card status-card">
-      <div id="statusText">Open a ChatGPT conversation (auto-captured) or a Google/Bing/DuckDuckGo results page, then click Refresh to capture it locally.</div>
-    </section>
+    <!-- Stage 6.10: persistent #statusCard removed (Design System Rule 9
+         — no sticky banners). Status messages now go through `showToast`
+         which fades in at the top centre and auto-hides. The legacy
+         #statusText element is kept as a hidden node so any vestigial
+         `els.statusText` lookups in old code paths don't throw. -->
+    <div id="statusText" hidden></div>
 
     <!-- Stage 5.9 capture pickers — promoted from a quiet dropdown
          into a prominent horizontal bar. Icon tile + eyebrow + serif

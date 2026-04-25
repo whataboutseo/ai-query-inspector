@@ -336,16 +336,30 @@ async function getInspectionTargetTab() {
 //    download helpers, formatting. Kept at the top because every other
 //    section uses at least one of them.
 // ============================================================================
+// Stage 6.10: setStatus is now a thin alias over showToast. The
+// persistent #statusCard banner was retired (Design System Rule 9 —
+// no sticky banners); status messages fade in at the top centre and
+// auto-hide. The hidden #statusText element still exists in the DOM
+// for resilience against any callers that read its textContent.
 function setStatus(message, kind = 'warn') {
-  els.statusText.textContent = message;
-  els.statusText.className = kind === 'ok' ? 'status-ok' : kind === 'error' ? 'status-error' : 'status-warn';
+  if (els.statusText) els.statusText.textContent = message;
+  showToast(message, kind);
 }
 
-function showToast(message) {
+const TOAST_DURATIONS = { ok: 2400, warn: 3200, error: 4500 };
+function showToast(message, kind = 'ok') {
+  if (!els.toast) return;
   els.toast.textContent = message;
+  els.toast.dataset.kind = kind === 'error' ? 'error' : kind === 'warn' ? 'warn' : 'ok';
   els.toast.classList.remove('hidden');
+  // Re-trigger the design-system slide-in animation on each call so a
+  // fresh toast doesn't jump in mid-fade if one is already on screen.
+  els.toast.style.animation = 'none';
+  // eslint-disable-next-line no-unused-expressions
+  els.toast.offsetHeight; // force reflow
+  els.toast.style.animation = '';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => els.toast.classList.add('hidden'), 1400);
+  toastTimer = setTimeout(() => els.toast.classList.add('hidden'), TOAST_DURATIONS[kind] || TOAST_DURATIONS.ok);
 }
 
 /**
