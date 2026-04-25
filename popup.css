@@ -934,21 +934,12 @@ html[data-theme="dark"] .hero-stat__capture:hover {
   letter-spacing: .06em;
   font-weight: 700;
 }
-.prompt-box,
-.expansion-tree {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px;
-}
-.prompt-box {
-  font-size: 14px;
-  line-height: 1.45;
-  font-weight: 700;
-}
 .expansion-tree {
   display: grid;
   gap: 10px;
+  background: transparent;
+  padding: 0;
+  border: 0;
 }
 .expansion-root {
   display: grid;
@@ -959,33 +950,35 @@ html[data-theme="dark"] .hero-stat__capture:hover {
   gap: 8px;
 }
 .expansion-node-label {
-  font-size: 13px;
-  color: var(--muted);
-  font-weight: 700;
+  font-family: var(--font-mono);
+  font-size: var(--fs-eyebrow);
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  letter-spacing: .05em;
 }
 .expansion-root-title,
 .expansion-query-item {
-  background: rgba(255,255,255,0.04);
+  background: var(--card-2);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius);
   padding: 10px 12px;
+  color: var(--ink);
 }
 .expansion-root-title {
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.4;
+  font-family: var(--font-display);
+  font-size: var(--fs-display-xs);
+  font-weight: 400;
+  line-height: 1.3;
 }
 .expansion-query-list {
   display: grid;
   gap: 8px;
   margin-left: 14px;
-  border-left: 1px dashed rgba(255,255,255,0.14);
+  border-left: 1px dashed var(--border-2);
   padding-left: 12px;
 }
 .expansion-query-item {
-  font-size: 14px;
+  font-size: var(--fs-body-sm);
   line-height: 1.4;
 }
 .strength-wrap {
@@ -2258,95 +2251,79 @@ body:not(.full-page) .popup-hide {
    card, using the shared .origin-line row layout. */
 
 /* -----------------------------------------------------------------------
-   Fan-out tree (stage 3.2).
-   Per-turn expansion layout: each turn renders as a block with a pill
-   header, prompt box, and a list of fan-out queries with optional
-   domain chips beneath each query.
+   Fan-out tree (stage 3.2 + 5.9.7 restyle).
+   Per-turn expansion layout: each turn renders as a card with a small
+   accent pill (TURN N), meta count, and a list of fan-out queries.
+   Restyled to use design-system tokens — light + dark modes both
+   handled by tokens.css / tokens-dark.css.
    ----------------------------------------------------------------------- */
 .expansion-tree-wrap {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 .expansion-turn {
-  border: 1px solid var(--border, rgba(255,255,255,0.1));
-  border-radius: 12px;
-  padding: 12px 14px;
-  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  background: var(--card-2);
   position: relative;
 }
 .expansion-turn + .expansion-turn::before {
-  /* Thin connector line between consecutive turns, suggesting that they
-     belong to the same conversation thread without drawing a literal
-     SVG tree. */
   content: "";
   position: absolute;
   left: 50%;
-  top: -9px;
+  top: -8px;
   width: 1px;
-  height: 8px;
-  background: rgba(120, 168, 255, 0.35);
+  height: 6px;
+  background: var(--accent-line);
 }
 .expansion-turn-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 .expansion-turn-pill {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: 0.04em;
-  text-transform: uppercase;
-  background: linear-gradient(90deg, rgba(120,168,255,0.2), rgba(139,92,246,0.2));
-  border: 1px solid rgba(120,168,255,0.35);
-  color: var(--text, #e7ecf7);
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-line);
+  color: var(--accent);
 }
 .expansion-turn-meta {
-  font-size: 11px;
-  color: var(--muted, #9aa3b2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-eyebrow);
+  color: var(--ink-3);
+  letter-spacing: 0.02em;
 }
 .expansion-query-text {
-  font-size: 13px;
+  font-size: var(--fs-body-sm);
   line-height: 1.5;
-  color: var(--text, #e7ecf7);
+  color: var(--ink);
   word-break: break-word;
 }
 .expansion-domain-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 .expansion-domain-chip {
   display: inline-block;
   padding: 2px 7px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 10.5px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--muted, #9aa3b2);
-  background: rgba(255,255,255,0.05);
-  border: 1px solid var(--border, rgba(255,255,255,0.1));
-}
-body.light-mode .expansion-turn {
-  background: rgba(13, 28, 74, 0.03) !important;
-  border-color: rgba(13, 28, 74, 0.12) !important;
-}
-body.light-mode .expansion-turn-pill {
-  color: #13255d !important;
-  background: rgba(42, 91, 215, 0.1) !important;
-  border-color: rgba(42, 91, 215, 0.3) !important;
-}
-body.light-mode .expansion-turn-meta    { color: #3d4e86 !important; }
-body.light-mode .expansion-query-text   { color: #13255d !important; }
-body.light-mode .expansion-domain-chip  {
-  background: rgba(13, 28, 74, 0.06) !important;
-  border-color: rgba(13, 28, 74, 0.18) !important;
-  color: #3d4e86 !important;
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
 }
 
 /* History sparkline (stage 3.5). Sits to the right of the overlap-%

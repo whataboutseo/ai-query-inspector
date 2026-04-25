@@ -1226,30 +1226,13 @@ function renderChatgpt(data) {
     }
   }
 
-  els.fanoutsList.innerHTML = '';
-  const queries = data?.queries || [];
-  els.fanoutsEmpty.classList.toggle('hidden', queries.length > 0);
-  els.fanoutsList.classList.toggle('hidden', queries.length === 0);
-  queries.forEach((item) => {
-    const li = document.createElement('li');
-    li.className = 'query-item';
-    const query = document.createElement('p');
-    query.className = 'query-text';
-    query.textContent = item.q;
-    li.appendChild(query);
-    if (item.domains.length) {
-      const domainTags = document.createElement('div');
-      domainTags.className = 'domain-tags';
-      item.domains.forEach((domain) => {
-        const tag = document.createElement('span');
-        tag.className = 'domain-tag';
-        tag.textContent = domain;
-        domainTags.appendChild(tag);
-      });
-      li.appendChild(domainTags);
-    }
-    els.fanoutsList.appendChild(li);
-  });
+  // Stage 5.9.7: dropped the duplicate flat .query-item list. The
+  // .expansion-tree below shows the same fan-outs grouped by turn —
+  // no need to render both. Kept a no-op clear for back-compat.
+  if (els.fanoutsList) {
+    els.fanoutsList.innerHTML = '';
+    els.fanoutsList.hidden = true;
+  }
 
   renderQueryExpansion(data);
   renderCitationStrength(data);
