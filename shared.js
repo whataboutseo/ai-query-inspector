@@ -86,6 +86,15 @@
     return '';
   }
 
+  /**
+   * @deprecated since 6.9. The recursive URL grabber harvested every
+   * nested `{url}` field in tool metadata (safe_urls, attribution_segments,
+   * etc.) which inflated source totals well above ChatGPT's UI count.
+   * The source pipeline now uses three canonical walkers
+   * (`walkCitedSources`, `walkSearchResultGroups`, `walkResponseLinkedUrls`).
+   * Kept exported as an escape hatch for archive replay if ChatGPT renames
+   * the canonical shapes; do not add new callers.
+   */
   function scanForSourceItems(value, acc = []) {
     if (!value || typeof value !== 'object') return acc;
     if (Array.isArray(value)) {
@@ -119,8 +128,9 @@
    *   - `sources_footnote` — bottom-of-message recap of every cited URL
    *     in the turn. These URLs are ALWAYS duplicates of the grouped_
    *     webpages above, so we skip them here to avoid double-counting
-   *     in domainCounts. (`scanForSourceItems` still picks them up
-   *     into the captured-sources table via the recursive walker.)
+   *     in domainCounts. (Stage 6.9 dropped the recursive
+   *     `scanForSourceItems` fallback; the canonical pipeline of
+   *     chips · search_result_group · response markdown is exhaustive.)
    *
    * `onCited(item)` is called for each new cited source. The caller
    * pushes onto its own array + handles domain/citation tallies so the
@@ -152,7 +162,114 @@
       snippet: sanitizeString(item.snippet || '', 400),
       domain,
       cited: true,
+      origin: 'chip',
     };
+  }
+
+  /**
+   * Stage 6.9: walk an arbitrary metadata subtree and emit each
+   * `search_result_group.entries[]` record. This is the canonical
+   * "considered/researched" set ChatGPT shows in its "Sources · 88 / 44"
+   * panel. Each entry carries `ref_id.turn_index` (0-based) so the same
+   * walker can run on the latest assistant message and back-attribute
+   * entries to the correct turn.
+   *
+   * Why a dedicated walker (vs `scanForSourceItems`): the recursive
+   * URL-grabber harvests every nested `{url}` field — including
+   * `safe_urls`, `attribution_segments`, and other tool-metadata noise —
+   * which inflated our totals well above ChatGPT's UI count. Restricting
+   * to `type === 'search_result_group'` matches the UI exactly.
+   *
+   * Caller supplies `onConsidered(item)` and is responsible for tallies.
+   */
+  function walkSearchResultGroups(node, onConsidered, defaultTurnIndex = 0) {
+    if (!node || typeof node !== 'object') return;
+    let groupsSeen = 0;
+    const visit = (value) => {
+      if (!value || typeof value !== 'object') return;
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+        return;
+      }
+      if (value.type === 'search_result_group' && Array.isArray(value.entries)) {
+        if (groupsSeen >= 1000) return;
+        groupsSeen += 1;
+        value.entries.slice(0, 500).forEach((entry) => {
+          if (!entry || typeof entry !== 'object') return;
+          if (typeof entry.url !== 'string') return;
+          const ti = entry.ref_id && Number.isFinite(entry.ref_id.turn_index)
+            ? entry.ref_id.turn_index
+            : defaultTurnIndex;
+          onConsidered({
+            url: entry.url,
+            title: entry.title || '',
+            snippet: entry.snippet || '',
+            attribution: entry.attribution || '',
+            pubDate: entry.pub_date || null,
+            turnIndex: ti,
+            refType: entry.ref_id?.ref_type || '',
+            refIndex: entry.ref_id?.ref_index ?? null,
+          });
+        });
+        return; // don't descend into entries again
+      }
+      Object.values(value).forEach(visit);
+    };
+    visit(node);
+  }
+
+  function buildConsideredSourceRecord(item, origin = 'group') {
+    const cleanUrl = sanitizeString(item.url, 1500);
+    let domain = '';
+    try { domain = normalizeDomain(new URL(cleanUrl).hostname); } catch {}
+    return {
+      url: cleanUrl,
+      title: sanitizeString(item.title || '', 300),
+      attribution: sanitizeString(item.attribution || '', 120),
+      snippet: sanitizeString(item.snippet || '', 400),
+      domain,
+      cited: false,
+      origin,
+      turnIndex: Number.isFinite(item.turnIndex) ? item.turnIndex : null,
+    };
+  }
+
+  /**
+   * Stage 6.9: extract URLs the assistant typed into its visible
+   * markdown response. Distinct from chip-citations and the considered
+   * panel — these are URLs the user can click in the rendered reply.
+   * We accept both markdown link form `[label](url)` and bare URLs.
+   * Caller passes the assistant message's `content` object.
+   */
+  const MD_LINK_RE = /\[([^\]\n]{1,300})\]\((https?:\/\/[^\s)]+)\)/g;
+  const BARE_URL_RE = /(?<![(\["'])\bhttps?:\/\/[^\s<>"'\])]+/g;
+  function walkResponseLinkedUrls(content, onLinked) {
+    if (!content || typeof content !== 'object') return;
+    const texts = [];
+    if (typeof content.text === 'string') texts.push(content.text);
+    if (Array.isArray(content.parts)) {
+      content.parts.forEach((part) => {
+        if (typeof part === 'string') texts.push(part);
+        else if (part && typeof part === 'object' && typeof part.text === 'string') texts.push(part.text);
+      });
+    }
+    const seen = new Set();
+    let count = 0;
+    const emit = (url, title) => {
+      if (count >= 500) return;
+      const cleaned = sanitizeString(url, 1500);
+      if (!cleaned || seen.has(cleaned)) return;
+      seen.add(cleaned);
+      count += 1;
+      onLinked({ url: cleaned, title: sanitizeString(title || '', 300), snippet: '', attribution: '' });
+    };
+    texts.forEach((text) => {
+      let m;
+      MD_LINK_RE.lastIndex = 0;
+      while ((m = MD_LINK_RE.exec(text)) !== null) emit(m[2], m[1]);
+      BARE_URL_RE.lastIndex = 0;
+      while ((m = BARE_URL_RE.exec(text)) !== null) emit(m[0], '');
+    });
   }
 
   /**
@@ -295,23 +412,32 @@
         snippet: item.snippet || '',
         count: 0,
         citedCount: 0,
+        // Stage 6.9: track which canonical bucket(s) the URL came from.
+        // `chip` (cited grouped_webpages), `group` (search_result_group),
+        // `response` (markdown link in assistant's reply). A URL can
+        // belong to several at once — we OR them together.
+        origins: new Set(),
       };
       existing.count += 1;
       if (item.cited) existing.citedCount += 1;
       if (!existing.title && item.title) existing.title = item.title;
       if (!existing.domain && item.domain) existing.domain = item.domain;
       // Stage 6.7: keep the friendly site name + preview text from
-      // whichever pass first supplies them (the dedicated cited walker
-      // populates both; the recursive scan may not).
+      // whichever pass first supplies them.
       if (!existing.attribution && item.attribution) existing.attribution = item.attribution;
       if (!existing.snippet && item.snippet) existing.snippet = item.snippet;
+      if (item.origin) existing.origins.add(item.origin);
       sourceMap.set(key, existing);
     });
     return [...sourceMap.values()].map((item) => {
+      const origins = [...(item.origins || [])];
       const statusLabel = item.citedCount > 0
         ? (item.citedCount < item.count ? 'Cited + considered' : 'Cited source')
         : 'Considered source';
-      return { ...item, statusLabel };
+      const out = { ...item, origins, statusLabel };
+      delete out.origins;
+      out.origins = origins;
+      return out;
     }).sort((a, b) => b.citedCount - a.citedCount || b.count - a.count || (a.domain || '').localeCompare(b.domain || ''));
   }
 
@@ -466,16 +592,32 @@
       const ct = content.content_type || '';
       parseFanoutQueries(text, ct).forEach((q) => currentTurn.queries.push(q));
 
-      const localItems = [];
-      scanForSourceItems(message.metadata || {}, localItems);
-      scanForSourceItems(message.content || {}, localItems);
+      // Stage 6.9: replaced the broad `scanForSourceItems` walkers with
+      // three canonical pipelines (chips · search_result_group · response
+      // markdown). The recursive walker harvested every `{url}` field —
+      // including `safe_urls`, `attribution_segments`, and unrelated tool
+      // metadata — so our totals exceeded ChatGPT's UI count. Restricting
+      // to the canonical surfaces makes per-turn counts match.
       const refs = message.metadata?.content_references;
       if (Array.isArray(refs)) {
         refs.forEach((ref) => walkCitedSources(ref, (item) => {
-          localItems.push(buildCitedSourceRecord(item));
+          currentTurn.sourceItems.push(buildCitedSourceRecord(item));
         }));
       }
-      currentTurn.sourceItems.push(...localItems);
+      // Considered set: bucket each entry to its `ref_id.turn_index`
+      // (0-based). Search-result groups typically live on the latest
+      // assistant message but back-attribute to earlier turns.
+      walkSearchResultGroups(message.metadata, (item) => {
+        const targetIdx = Number.isFinite(item.turnIndex) ? item.turnIndex + 1 : currentTurn.index;
+        const targetTurn = turns.find((t) => t.index === targetIdx) || currentTurn;
+        targetTurn.sourceItems.push(buildConsideredSourceRecord(item, 'group'));
+      }, /* defaultTurnIndex */ currentTurn.index - 1);
+      // Response-linked URLs from the assistant's visible reply only.
+      if (role === 'assistant') {
+        walkResponseLinkedUrls(message.content, (item) => {
+          currentTurn.sourceItems.push(buildConsideredSourceRecord(item, 'response'));
+        });
+      }
     });
 
     return turns.map((turn) => {
@@ -573,12 +715,32 @@
         }
       }
 
-      // Collect source items from assistant *and* tool messages. Tool
-      // messages occasionally carry the raw search results in their
-      // metadata before the assistant turns them into citations.
-      if (message.author?.role === 'assistant' || isFanoutMessage(message)) {
-        scanForSourceItems(message.metadata || {}, sourceItems);
-        scanForSourceItems(message.content || {}, sourceItems);
+      // Stage 6.9: canonical-only source pipeline (chips · search_result
+      // _group · response markdown). Drop the recursive scanForSourceItems
+      // call — it harvested every nested URL field and inflated totals.
+      const isAssistantOrTool = message.author?.role === 'assistant' || isFanoutMessage(message);
+
+      // Considered set from `search_result_group.entries[]`. Lives in
+      // tool/assistant metadata; bucket by `ref_id.turn_index` even at
+      // the conversation-level so domainCounts reflect the canonical UI.
+      if (isAssistantOrTool) {
+        walkSearchResultGroups(message.metadata, (item) => {
+          const record = buildConsideredSourceRecord(item, 'group');
+          totalUrls += 1;
+          sourceItems.push(record);
+          if (record.url.includes('utm_source=chatgpt')) utmCount += 1;
+          if (record.domain) domains.push(record.domain);
+        });
+      }
+      // Response-linked URLs from the assistant's visible reply only.
+      if (message.author?.role === 'assistant') {
+        walkResponseLinkedUrls(message.content, (item) => {
+          const record = buildConsideredSourceRecord(item, 'response');
+          totalUrls += 1;
+          sourceItems.push(record);
+          if (record.url.includes('utm_source=chatgpt')) utmCount += 1;
+          if (record.domain) domains.push(record.domain);
+        });
       }
 
       const refs = message.metadata?.content_references;
@@ -1310,6 +1472,11 @@
     registeredDomain,
     extractMessageText,
     scanForSourceItems,
+    walkCitedSources,
+    walkSearchResultGroups,
+    walkResponseLinkedUrls,
+    buildCitedSourceRecord,
+    buildConsideredSourceRecord,
     getSearchOrigin,
     classifyPromptIntent,
     sortConversationPath,
