@@ -634,14 +634,40 @@ body.light-mode .count-badge {
    ============================================================ */
 html[data-theme="dark"] .btn-primary,
 html[data-theme="dark"] .btn-cta-primary,
-html[data-theme="dark"] .dash-actions .btn-refresh,
-html[data-theme="dark"] .prompt-cta .cta-btn {
+html[data-theme="dark"] .dash-actions .btn-refresh {
   background: var(--accent);
   color: #fff;
 }
 html[data-theme="dark"] .btn-primary:hover,
 html[data-theme="dark"] .btn-cta-primary:hover,
-html[data-theme="dark"] .dash-actions .btn-refresh:hover,
+html[data-theme="dark"] .dash-actions .btn-refresh:hover {
+  background: var(--accent-2);
+}
+
+/* Stage 5.9.3 — .prompt-cta .cta-btn (Capture Google SERP).
+   Original design-system value was teal-on-teal-tinted card (white
+   text on var(--accent)) which blended into the accent-bg of its
+   container. Switch to ink-on-card in light + accent-on-dark in
+   dark mode so the button has strong contrast against the surface
+   it sits on, and bump weight + size so the label reads clearly. */
+.prompt-cta .cta-btn {
+  background: var(--ink);
+  color: #fff;
+  font-size: var(--fs-body-sm);
+  font-weight: 600;
+  padding: 11px 14px;
+  letter-spacing: -0.005em;
+  box-shadow: 0 4px 14px -4px rgba(15,15,14,0.35);
+}
+.prompt-cta .cta-btn:hover {
+  background: #000;
+  transform: translateY(-1px);
+}
+html[data-theme="dark"] .prompt-cta .cta-btn {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 14px -4px rgba(0,0,0,0.5);
+}
 html[data-theme="dark"] .prompt-cta .cta-btn:hover {
   background: var(--accent-2);
 }
@@ -1273,48 +1299,15 @@ body.full-page .query-list li {
   break-inside: avoid;
 }
 
-body.full-page #fanoutsList,
-body.full-page #sourcesWrap,
-body.full-page #sitesWrap,
-body.full-page #googleResultsWrap,
-body.full-page #combinedWrap,
-body.full-page #historyWrap {
-  display: grid;
-  gap: 14px;
-}
-
-body.full-page #sitesWrap,
-body.full-page #googleSitesWrap,
-body.full-page #citationStrengthWrap {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-}
-
-body.full-page #fanoutsList {
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  columns: unset;
-}
-
-body.full-page #googleResultsWrap,
-body.full-page #combinedWrap {
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-}
-
-body.full-page #sourcesWrap {
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-}
-
-body.full-page #historyWrap {
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-}
-
-body.full-page .site-row,
-body.full-page .result-card,
-body.full-page .source-card,
-body.full-page .comparison-row,
-body.full-page .history-card,
-body.full-page .strength-row {
-  min-height: 96px;
-}
+/* Stage 5.9.3: removed legacy full-page auto-fit grid rules that
+   targeted #sourcesWrap (now a <tbody> for .src-table),
+   #citationStrengthWrap (now .bars 3-col grid), #combinedWrap (now
+   .rank-compare), #googleResultsWrap (now .serp-result rows),
+   #historyWrap (now .conv-list), and #fanoutsList. The auto-fit
+   columns were forcing the design-system layouts into multi-column
+   grids that mangled them (table rows side-by-side, bars splitting
+   across columns, etc.). Each panel's recipe handles its own
+   layout now via tokens.css + components.css. */
 
 body.full-page .prompt-box {
   font-size: 1.05rem;
@@ -1410,16 +1403,6 @@ body.full-page .comparison-title {
   body.full-page .summary-grid .search-origin-card,
   body.full-page .summary-grid .intensity-card {
     grid-column: span 12;
-  }
-  body.full-page #fanoutsList,
-  body.full-page #sitesWrap,
-  body.full-page #googleSitesWrap,
-  body.full-page #citationStrengthWrap,
-  body.full-page #googleResultsWrap,
-  body.full-page #sourcesWrap,
-  body.full-page #combinedWrap,
-  body.full-page #historyWrap {
-    grid-template-columns: 1fr;
   }
 }
 
