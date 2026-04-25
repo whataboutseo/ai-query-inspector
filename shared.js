@@ -490,9 +490,15 @@
       return {
         index: turn.index,
         prompt: turn.prompt,
-        queries: [...uniqueQuery.values()].slice(0, 20),
+        queries: [...uniqueQuery.values()].slice(0, 50),
         queryCount: uniqueQuery.size,
-        sources: sources.slice(0, 20),
+        // Stage 6.8: was capped at 20, but a real ChatGPT payload has
+        // 80+ "considered" sources per turn (the search_result_groups
+        // panel ChatGPT shows). Bumped to 500 (matches the flat parser
+        // cap on parseChatgptPayload's `sources`) so the captured-
+        // sources table mirrors what ChatGPT considered, not just the
+        // first 20 alphabetically by URL.
+        sources: sources.slice(0, 500),
         citedSourceCount,
         uniqueSiteCount: uniqueSites.length,
         uniqueSourceCount: sources.length,
