@@ -1664,11 +1664,17 @@ body.full-page .turns-wrap {
 
 
 
-/* ===== Light mode contrast fixes ===== */
+/* ===== Light mode contrast fixes =====
+   Stage 5.9.8: dropped `body.light-mode .tab-panel *` from this universal-
+   color rule. It was painting EVERY descendant of every dashboard panel
+   (#panelChatgpt / #panelGoogle / #panelCombined / #panelHistory) dark
+   blue (#10214f) — including .btn-cta-primary buttons whose design-system
+   `color: #fff` lost on specificity (0,1,0 < 0,2,1). Result was the
+   "Capture Google SERP" CTA rendering as dark navy text on its dark ink
+   background — completely unreadable. Design-system tokens already drive
+   light-mode text color via :root in tokens.css. */
 body.light-mode,
-body.light-mode .app,
-body.light-mode .tab-panel,
-body.light-mode .tab-panel * {
+body.light-mode .app {
   color: #10214f;
 }
 
