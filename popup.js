@@ -173,6 +173,7 @@ const els = {
   archiveRetentionSelect: document.getElementById('archiveRetentionSelect'),
   clearChatgptArchiveBtn: document.getElementById('clearChatgptArchiveBtn'),
   clearGoogleArchiveBtn: document.getElementById('clearGoogleArchiveBtn'),
+  resetAllDataBtn: document.getElementById('resetAllDataBtn'),
 
   // Stage 6 unified conversation picker (replaces the Stage 4.2 dual
   // ChatGPT + Google selects). One picker drives every panel — picking
@@ -439,6 +440,70 @@ function openPromptModal({ title = 'Enter value', message = '', label = 'Value',
   // other. The queue is a single chain of promises.
   const next = promptModalQueue.then(run);
   promptModalQueue = next.catch(() => null);
+  return next;
+}
+
+/**
+ * Stage 6.10: confirm-only variant of openPromptModal — same dialog
+ * markup but the text input is hidden. Resolves to true (Ok) or false
+ * (Cancel / Escape / backdrop). Pass `danger: true` to paint the Ok
+ * button in the danger token so destructive actions read as such.
+ */
+function openConfirmModal({ title = 'Confirm', message = '', okLabel = 'OK', cancelLabel = 'Cancel', danger = false } = {}) {
+  const run = () => new Promise((resolve) => {
+    const modal = document.getElementById('promptModal');
+    const okBtn = document.getElementById('promptModalOk');
+    const cancelBtn = document.getElementById('promptModalCancel');
+    const titleEl = document.getElementById('promptModalTitle');
+    const messageEl = document.getElementById('promptModalMessage');
+    const field = modal?.querySelector('.prompt-modal__field');
+    if (!modal || !okBtn || !cancelBtn) {
+      // Fallback for missing markup — also covers test harnesses.
+      resolve(window.confirm(message || title));
+      return;
+    }
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    messageEl.classList.toggle('hidden', !message);
+    if (field) field.hidden = true;
+    okBtn.textContent = okLabel;
+    cancelBtn.textContent = cancelLabel;
+    okBtn.classList.toggle('danger-ghost', !!danger);
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const cleanup = (value) => {
+      modal.classList.add('hidden');
+      modal.setAttribute('hidden', '');
+      if (field) field.hidden = false;        // restore for the next prompt caller
+      okBtn.classList.remove('danger-ghost'); // restore default styling
+      okBtn.removeEventListener('click', handleOk);
+      cancelBtn.removeEventListener('click', handleCancel);
+      modal.removeEventListener('click', handleBackdropClick);
+      document.removeEventListener('keydown', handleEscape, true);
+      try { previouslyFocused?.focus?.(); } catch {}
+      resolve(value);
+    };
+    const handleOk = () => cleanup(true);
+    const handleCancel = () => cleanup(false);
+    const handleBackdropClick = (ev) => {
+      if (ev.target instanceof HTMLElement && ev.target.dataset.promptDismiss !== undefined) cleanup(false);
+    };
+    const handleEscape = (ev) => {
+      if (ev.key === 'Escape') { ev.preventDefault(); cleanup(false); }
+    };
+
+    okBtn.addEventListener('click', handleOk);
+    cancelBtn.addEventListener('click', handleCancel);
+    modal.addEventListener('click', handleBackdropClick);
+    document.addEventListener('keydown', handleEscape, true);
+
+    modal.classList.remove('hidden');
+    modal.removeAttribute('hidden');
+    requestAnimationFrame(() => { try { cancelBtn.focus(); } catch {} });
+  });
+  const next = promptModalQueue.then(run);
+  promptModalQueue = next.catch(() => false);
   return next;
 }
 
@@ -1087,6 +1152,47 @@ async function handleClearGoogleArchive() {
   userPickedStandaloneGoogleId = null;
   await refreshGoogleArchive();
   showToast('Google archive cleared');
+}
+
+/**
+ * Stage 6.10: full reset for testing. Wipes every captured / derived
+ * key (single-slot data, archives, comparison history, fingerprints,
+ * pending orchestration state) but preserves user prefs (auto-capture
+ * toggles, retention caps, theme).
+ *
+ * Confirms via the accessible prompt modal before destroying — the
+ * settings modal is the only UI exposing this, but the underlying
+ * `storage.clearAllData()` is callable from the console too.
+ *
+ * After clearing, every in-memory cache that mirrors persisted state is
+ * reset and the panels re-render to the empty state.
+ */
+async function handleResetAllData() {
+  const confirmed = await openConfirmModal({
+    title: 'Reset all captured data?',
+    message: 'This erases every ChatGPT capture, search snapshot, archive entry, and saved comparison on this device. Settings (auto-capture, retention caps, theme) will be preserved. This cannot be undone.',
+    okLabel: 'Reset everything',
+    cancelLabel: 'Cancel',
+    danger: true,
+  });
+  if (!confirmed) return;
+  await self.AIQIShared.storage.clearAllData();
+  // Reset every in-memory cache that mirrors persisted state.
+  lastChatgptData = null;
+  lastGoogleData = null;
+  comparisonHistory = [];
+  lastSavedFingerprint = '';
+  userPickedConversationId = null;
+  userPickedStandaloneGoogleId = null;
+  // Re-paint every panel + the pickers from the now-empty state.
+  await refreshChatgptArchive();
+  await refreshGoogleArchive();
+  if (typeof renderChatgpt === 'function') renderChatgpt(null);
+  if (typeof renderGoogle === 'function') renderGoogle(null);
+  if (typeof renderCombined === 'function') renderCombined();
+  if (typeof renderHistory === 'function') renderHistory();
+  if (typeof populatePopup === 'function') populatePopup();
+  showToast('All captured data cleared', 'ok');
 }
 
 // --- end history / retention helpers --------------------------------------
@@ -2862,6 +2968,9 @@ function bindEvents() {
   }
   if (els.clearGoogleArchiveBtn) {
     els.clearGoogleArchiveBtn.addEventListener('click', handleClearGoogleArchive);
+  }
+  if (els.resetAllDataBtn) {
+    els.resetAllDataBtn.addEventListener('click', handleResetAllData);
   }
   if (els.openFullPageBtn) els.openFullPageBtn.addEventListener('click', async () => {
     const currentTab = await getInspectionTargetTab();
