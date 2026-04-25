@@ -354,8 +354,17 @@ body.light-mode .count-badge {
 .capture-picker {
   position: relative;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  gap: 14px;
+  /* Stage 6.6: 2-row layout — head row (icon + body) on top, switcher
+     on its own row spanning the full card width. The dropdown itself
+     gets max-width:none so it grows to fill — see .capture-picker__switch
+     and .picker-select overrides below. Reads better than a cramped 260px
+     select crammed into the right column. */
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-areas:
+    "icon body"
+    "switch switch";
+  column-gap: 14px;
+  row-gap: 12px;
   align-items: center;
   padding: 14px 16px 14px 18px;
   background: var(--card);
@@ -363,6 +372,9 @@ body.light-mode .count-badge {
   border-radius: var(--radius);
   box-shadow: var(--shadow-1);
 }
+.capture-picker__icon { grid-area: icon; }
+.capture-picker__body { grid-area: body; }
+.capture-picker__switch { grid-area: switch; }
 .capture-picker[hidden] { display: none; }
 
 /* Stage 6 — single conversation picker drives all tabs. The picker
@@ -424,7 +436,8 @@ body[data-active-view="history"] .capture-picker {
   letter-spacing: 0.02em;
 }
 .capture-picker__note[hidden] { display: none; }
-.capture-picker__switch { display: inline-flex; align-items: center; flex-shrink: 0; }
+.capture-picker__switch { display: flex; align-items: center; width: 100%; }
+.capture-picker__switch .picker-select { width: 100%; max-width: none; }
 
 .picker-select {
   appearance: none;
@@ -439,7 +452,11 @@ body[data-active-view="history"] .capture-picker {
   font-size: var(--fs-body-xs);
   line-height: 1.3;
   cursor: pointer;
-  max-width: 260px;
+  /* Stage 6.6: dropdowns span their container by default. Site-wide
+     overrides above (.capture-picker__switch, .standalone-bar__row)
+     already set width:100%; this max-width:none lets that win. */
+  width: 100%;
+  max-width: none;
   text-overflow: ellipsis;
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
   /* inline chevron so we don't ship a separate asset */
