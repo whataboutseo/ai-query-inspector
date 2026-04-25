@@ -1176,6 +1176,24 @@ html[data-theme="dark"] .hero-stat__capture:hover {
 .domain-cell {
   font-weight: 800;
 }
+/* Stage 6.7: small chip showing the citation chip's friendly attribution
+   (the human-readable site name shown in ChatGPT's chip pill) — sits
+   next to the technical domain so users can recognize the chip. */
+.src-table .src-attribution {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  margin-left: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-line);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
 .title-cell {
   color: #d7e3ff;
 }

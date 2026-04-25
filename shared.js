@@ -94,15 +94,65 @@
     }
     const url = typeof value.url === 'string' ? sanitizeString(value.url, 1500) : '';
     const title = sanitizeString(value.title || value.display_text || value.name || value.citation_text || value.text || '', 300);
+    const attribution = sanitizeString(value.attribution || '', 120);
+    const snippet = sanitizeString(value.snippet || '', 400);
     if (url && /^https?:\/\//i.test(url)) {
       let domain = '';
       try { domain = normalizeDomain(new URL(url).hostname); } catch {}
-      acc.push({ url, title, domain });
+      acc.push({ url, title, domain, attribution, snippet });
     }
     Object.values(value).forEach((child) => {
       if (child && typeof child === 'object') scanForSourceItems(child, acc);
     });
     return acc;
+  }
+
+  /**
+   * Stage 6.7: walk a single content_reference and emit cited source
+   * items. Handles two ChatGPT shapes used today by the inline chips:
+   *
+   *   - `grouped_webpages` — the visible chip's main URL is at
+   *     ref.items[].url. Each item has a `supporting_websites[]` array
+   *     of additional sources hidden behind the chip-popup arrows
+   *     ("+N more"). Both count as cited.
+   *
+   *   - `sources_footnote` — bottom-of-message recap of every cited URL
+   *     in the turn. These URLs are ALWAYS duplicates of the grouped_
+   *     webpages above, so we skip them here to avoid double-counting
+   *     in domainCounts. (`scanForSourceItems` still picks them up
+   *     into the captured-sources table via the recursive walker.)
+   *
+   * `onCited(item)` is called for each new cited source. The caller
+   * pushes onto its own array + handles domain/citation tallies so the
+   * helper stays pure.
+   */
+  function walkCitedSources(ref, onCited) {
+    if (!ref || typeof ref !== 'object') return;
+    const rtype = ref.type || '';
+    if (rtype && rtype !== 'grouped_webpages') return; // skip footnote etc.
+    const items = Array.isArray(ref.items) ? ref.items : [];
+    items.slice(0, 500).forEach((item) => {
+      if (!item || typeof item !== 'object') return;
+      if (typeof item.url === 'string') onCited(item);
+      const supporting = Array.isArray(item.supporting_websites) ? item.supporting_websites : [];
+      supporting.slice(0, 50).forEach((sw) => {
+        if (sw && typeof sw === 'object' && typeof sw.url === 'string') onCited(sw);
+      });
+    });
+  }
+
+  function buildCitedSourceRecord(item) {
+    const cleanUrl = sanitizeString(item.url, 1500);
+    let domain = '';
+    try { domain = normalizeDomain(new URL(cleanUrl).hostname); } catch {}
+    return {
+      url: cleanUrl,
+      title: sanitizeString(item.title || item.display_text || item.name || item.citation_text || '', 300),
+      attribution: sanitizeString(item.attribution || '', 120),
+      snippet: sanitizeString(item.snippet || '', 400),
+      domain,
+      cited: true,
+    };
   }
 
   /**
@@ -237,11 +287,24 @@
     items.forEach((item) => {
       if (!item?.url) return;
       const key = item.url;
-      const existing = sourceMap.get(key) || { url: item.url, title: item.title || '', domain: item.domain || '', count: 0, citedCount: 0 };
+      const existing = sourceMap.get(key) || {
+        url: item.url,
+        title: item.title || '',
+        domain: item.domain || '',
+        attribution: item.attribution || '',
+        snippet: item.snippet || '',
+        count: 0,
+        citedCount: 0,
+      };
       existing.count += 1;
       if (item.cited) existing.citedCount += 1;
       if (!existing.title && item.title) existing.title = item.title;
       if (!existing.domain && item.domain) existing.domain = item.domain;
+      // Stage 6.7: keep the friendly site name + preview text from
+      // whichever pass first supplies them (the dedicated cited walker
+      // populates both; the recursive scan may not).
+      if (!existing.attribution && item.attribution) existing.attribution = item.attribution;
+      if (!existing.snippet && item.snippet) existing.snippet = item.snippet;
       sourceMap.set(key, existing);
     });
     return [...sourceMap.values()].map((item) => {
@@ -408,21 +471,9 @@
       scanForSourceItems(message.content || {}, localItems);
       const refs = message.metadata?.content_references;
       if (Array.isArray(refs)) {
-        refs.forEach((ref) => {
-          if (!Array.isArray(ref?.items)) return;
-          ref.items.forEach((item) => {
-            if (!item || typeof item.url !== 'string') return;
-            const url = sanitizeString(item.url, 1500);
-            let domain = '';
-            try { domain = normalizeDomain(new URL(url).hostname); } catch {}
-            localItems.push({
-              url,
-              title: sanitizeString(item.title || item.display_text || item.name || item.citation_text || '', 300),
-              domain,
-              cited: true,
-            });
-          });
-        });
+        refs.forEach((ref) => walkCitedSources(ref, (item) => {
+          localItems.push(buildCitedSourceRecord(item));
+        }));
       }
       currentTurn.sourceItems.push(...localItems);
     });
@@ -526,28 +577,15 @@
 
       const refs = message.metadata?.content_references;
       if (!Array.isArray(refs)) continue;
-      refs.slice(0, 500).forEach((ref) => {
-        if (!Array.isArray(ref?.items)) return;
-        ref.items.slice(0, 500).forEach((item) => {
-          if (!item || typeof item !== 'object' || typeof item.url !== 'string') return;
-          const cleanUrl = sanitizeString(item.url, 1500);
-          totalUrls += 1;
-          citedSources += 1;
-          citedUrlCounts.set(cleanUrl, (citedUrlCounts.get(cleanUrl) || 0) + 1);
-          sourceItems.push({
-            url: cleanUrl,
-            title: sanitizeString(item.title || item.display_text || item.name || item.citation_text || '', 300),
-            domain: '',
-            cited: true,
-          });
-          if (cleanUrl.includes('utm_source=chatgpt')) utmCount += 1;
-          try {
-            const parsedUrl = new URL(cleanUrl);
-            const domain = normalizeDomain(parsedUrl.hostname);
-            if (domain) domains.push(domain);
-          } catch {}
-        });
-      });
+      refs.slice(0, 500).forEach((ref) => walkCitedSources(ref, (item) => {
+        const record = buildCitedSourceRecord(item);
+        totalUrls += 1;
+        citedSources += 1;
+        citedUrlCounts.set(record.url, (citedUrlCounts.get(record.url) || 0) + 1);
+        sourceItems.push(record);
+        if (record.url.includes('utm_source=chatgpt')) utmCount += 1;
+        if (record.domain) domains.push(record.domain);
+      }));
     }
 
     const uniqueQueryKeys = new Set();

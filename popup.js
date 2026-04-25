@@ -1456,6 +1456,16 @@ function renderSources(data) {
     domainText.textContent = item.domain || 'source';
     domainWrap.appendChild(fav);
     domainWrap.appendChild(domainText);
+    // Stage 6.7: surface the citation chip's attribution label (e.g.,
+    // "Samsung nz", "The Verge", "9to5Mac") next to the domain. ChatGPT's
+    // chip pill uses attribution as the primary label; the bare domain is
+    // the technical site. We show both so users recognize the chip.
+    if (item.attribution && item.attribution.toLowerCase() !== (item.domain || '').toLowerCase()) {
+      const attr = document.createElement('span');
+      attr.className = 'src-attribution';
+      attr.textContent = item.attribution;
+      domainWrap.appendChild(attr);
+    }
     domainCell.appendChild(domainWrap);
 
     const titleCell = document.createElement('td');
