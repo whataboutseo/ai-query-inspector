@@ -707,7 +707,13 @@ function renderQueryExpansion(data) {
     turnPill.textContent = `Turn ${turn.index}`;
     const turnMeta = document.createElement('span');
     turnMeta.className = 'expansion-turn-meta';
-    turnMeta.textContent = `${turn.queryCount || (turn.queries || []).length} queries · ${turn.citedSourceCount || 0} cited · ${turn.uniqueSiteCount || 0} sites`;
+    // Stage 6.9: surface the canonical-considered count alongside cited so
+    // the per-turn meta mirrors ChatGPT's "Sources · N" panel total.
+    // considered = total unique URLs in turn − chip-citations.
+    const cited = turn.citedSourceCount || 0;
+    const totalSources = turn.uniqueSourceCount || (turn.sources || []).length;
+    const considered = Math.max(0, totalSources - cited);
+    turnMeta.textContent = `${turn.queryCount || (turn.queries || []).length} queries · ${cited} cited · ${considered} considered · ${turn.uniqueSiteCount || 0} sites`;
     const turnChevron = document.createElement('span');
     turnChevron.className = 'expansion-turn-chevron';
     turnChevron.setAttribute('aria-hidden', 'true');
