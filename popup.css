@@ -732,6 +732,13 @@ html[data-theme="dark"] .settings-modal__backdrop {
 }
 
 /* ============================================================
+   Stage 5.9.2 — popup mini-stats 3-column variant
+   (after removing the F1 cell which needed precision/recall
+   context the popup couldn't fit).
+   ============================================================ */
+.mini-stats--three { grid-template-columns: repeat(3, 1fr); }
+
+/* ============================================================
    Stage 5.9.1 — hero-stat with inline Google-capture quick action
    ============================================================ */
 .hero-stat--with-action {

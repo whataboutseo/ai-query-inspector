@@ -1036,18 +1036,16 @@ function populatePopup() {
   if (heroValue) heroValue.textContent = String(q);
   if (heroSub) heroSub.textContent = `fan-outs · ${c} cites · ${s} sites`;
 
-  // Mini-stats strip. Overlap cell shows F1 score when both sides captured.
+  // Mini-stats strip — 3 cells. F1 was removed (lived as a fourth
+  // cell) because users without the precision/recall context found
+  // the headline number opaque. F1 still surfaces on the Compare tab
+  // where the .precision-strip explains its meaning inline.
   const miniFan = document.getElementById('popupMiniFanouts');
   const miniCites = document.getElementById('popupMiniCites');
   const miniSites = document.getElementById('popupMiniSites');
-  const miniOverlap = document.getElementById('popupMiniOverlap');
   if (miniFan) miniFan.textContent = String(q);
   if (miniCites) miniCites.textContent = String(c);
   if (miniSites) miniSites.textContent = String(s);
-  if (miniOverlap) {
-    const combined = buildCombinedData();
-    miniOverlap.textContent = combined ? `${combined.f1Score}%` : '—';
-  }
 
   // Fan-out queries pop-section.
   const fanoutList = document.getElementById('popupFanoutList');

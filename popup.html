@@ -81,7 +81,11 @@
         </button>
       </div>
 
-      <div class="mini-stats">
+      <!-- 3-col mini-stats: dropped the F1 cell because the headline
+           Compare metric needs context (precision vs recall) the popup
+           doesn't have room to explain. F1 still lives on the Compare
+           tab where the precision-strip explains it inline. -->
+      <div class="mini-stats mini-stats--three">
         <div class="mini-stat">
           <div class="val" id="popupMiniFanouts">0</div>
           <div class="lbl">FAN-OUTS</div>
@@ -93,10 +97,6 @@
         <div class="mini-stat">
           <div class="val" id="popupMiniSites">0</div>
           <div class="lbl">SITES</div>
-        </div>
-        <div class="mini-stat">
-          <div class="val" id="popupMiniOverlap">—</div>
-          <div class="lbl">F1</div>
         </div>
       </div>
 
