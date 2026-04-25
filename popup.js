@@ -1110,6 +1110,61 @@ function removeHistoryEntry(matchKey) {
   showToast('Saved comparison removed');
 }
 
+// --- Stage 4.5 per-run tags + notes ---------------------------------------
+//
+// Each run record gains `tags: string[]` and `notes: string`. They live on
+// the existing comparisonHistory entry and persist via saveLocalState();
+// no new storage key needed. CRUD helpers normalise / dedupe / clip and
+// re-render the timeline so the UI stays a thin layer over state.
+
+const TAG_MAX_LEN = 32;
+const TAGS_PER_RUN_MAX = 8;
+const NOTES_MAX_LEN = 500;
+
+function findRunByKey(matchKey) {
+  if (!matchKey) return null;
+  return comparisonHistory.find((h) => (h.id || h.savedAt) === matchKey) || null;
+}
+
+function normaliseTag(raw) {
+  return String(raw || '').trim().replace(/\s+/g, ' ').slice(0, TAG_MAX_LEN);
+}
+
+function addRunTag(matchKey, raw) {
+  const run = findRunByKey(matchKey);
+  if (!run) return false;
+  const tag = normaliseTag(raw);
+  if (!tag) return false;
+  if (!Array.isArray(run.tags)) run.tags = [];
+  // Case-insensitive dedupe on existing tag set.
+  const existing = run.tags.find((t) => t.toLowerCase() === tag.toLowerCase());
+  if (existing) return false;
+  run.tags.push(tag);
+  if (run.tags.length > TAGS_PER_RUN_MAX) run.tags = run.tags.slice(-TAGS_PER_RUN_MAX);
+  saveLocalState().catch(() => {});
+  return true;
+}
+
+function removeRunTag(matchKey, tag) {
+  const run = findRunByKey(matchKey);
+  if (!run || !Array.isArray(run.tags)) return false;
+  const before = run.tags.length;
+  run.tags = run.tags.filter((t) => t.toLowerCase() !== String(tag || '').toLowerCase());
+  if (run.tags.length === before) return false;
+  saveLocalState().catch(() => {});
+  return true;
+}
+
+function setRunNotes(matchKey, raw) {
+  const run = findRunByKey(matchKey);
+  if (!run) return false;
+  const next = String(raw || '').slice(0, NOTES_MAX_LEN);
+  if ((run.notes || '') === next) return false;
+  run.notes = next;
+  saveLocalState().catch(() => {});
+  return true;
+}
+
 async function handleHistoryRetentionChange(value) {
   const cap = Number(value) || 100;
   currentSettings = await self.AIQIShared.setSettings({ historyRetention: cap });
@@ -2041,8 +2096,44 @@ function renderHistoryList(buckets) {
   });
 }
 
+// Stage 4.5: compare-mode state. Holds the bucket being viewed + the
+// up-to-two run keys the user has picked to diff. Reset whenever the
+// detail view re-paints from a different bucket.
+let runDiffMode = false;
+let runDiffBucketKey = null;
+let runDiffSelection = []; // queue of run match-keys, max length 2.
+
+function resetRunDiffSelection() {
+  runDiffSelection = [];
+}
+
+function toggleRunDiffMode() {
+  runDiffMode = !runDiffMode;
+  resetRunDiffSelection();
+  renderHistory();
+}
+
+function pickRunForDiff(matchKey) {
+  if (!matchKey) return;
+  const i = runDiffSelection.indexOf(matchKey);
+  if (i >= 0) {
+    runDiffSelection.splice(i, 1);
+  } else {
+    runDiffSelection.push(matchKey);
+    if (runDiffSelection.length > 2) runDiffSelection.shift(); // keep last 2
+  }
+  renderHistory();
+}
+
 function renderHistoryDetail(bucket) {
   if (!bucket) { selectedConversationKey = null; return; }
+  // If the user navigated to a different conversation, drop the prior
+  // diff selection so the checkboxes don't appear pre-checked on the
+  // wrong runs.
+  if (runDiffBucketKey !== bucket.key) {
+    runDiffBucketKey = bucket.key;
+    resetRunDiffSelection();
+  }
   const eyebrow = document.getElementById('convDetailEyebrow');
   const titleEl = document.getElementById('convDetailTitle');
   const engineChip = document.getElementById('convDetailEngineChip');
@@ -2072,9 +2163,54 @@ function renderHistoryDetail(bucket) {
 
   if (!timeline) return;
   timeline.innerHTML = '';
+
+  // Stage 4.5: timeline tools strip — Compare-runs toggle + selection
+  // counter. Hidden if there are <2 runs (nothing to diff).
+  if (bucket.runs.length >= 2) {
+    const tools = document.createElement('div');
+    tools.className = 'timeline-tools';
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'btn btn-outline timeline-tools__toggle' + (runDiffMode ? ' is-active' : '');
+    toggle.textContent = runDiffMode ? 'Exit compare mode' : 'Compare runs';
+    toggle.addEventListener('click', toggleRunDiffMode);
+    tools.appendChild(toggle);
+    if (runDiffMode) {
+      const hint = document.createElement('span');
+      hint.className = 'timeline-tools__hint';
+      hint.textContent = runDiffSelection.length === 0
+        ? 'Pick two runs to diff'
+        : runDiffSelection.length === 1
+          ? '1 of 2 picked — pick one more'
+          : 'Showing diff below';
+      tools.appendChild(hint);
+    }
+    timeline.appendChild(tools);
+  } else if (runDiffMode) {
+    // Single-run bucket: silently drop compare mode.
+    runDiffMode = false;
+    resetRunDiffSelection();
+  }
+
   bucket.runs.forEach((run, idx) => {
     const card = document.createElement('div');
-    card.className = 'tl-item' + (idx === 0 ? '' : ' past');
+    const matchKey = run.id || run.savedAt;
+    const isSelected = runDiffSelection.includes(matchKey);
+    card.className = 'tl-item' + (idx === 0 ? '' : ' past') + (runDiffMode && isSelected ? ' tl-item--picked' : '');
+
+    // Stage 4.5: pick-checkbox in compare mode. Sits at the front so it
+    // doesn't reflow the existing date/prompt/meta column.
+    if (runDiffMode) {
+      const pick = document.createElement('label');
+      pick.className = 'tl-pick';
+      pick.title = isSelected ? 'Remove from diff' : 'Pick for diff';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = isSelected;
+      cb.addEventListener('change', () => pickRunForDiff(matchKey));
+      pick.appendChild(cb);
+      card.appendChild(pick);
+    }
 
     const left = document.createElement('div');
     const date = document.createElement('div');
@@ -2101,6 +2237,64 @@ function renderHistoryDetail(bucket) {
     left.appendChild(date);
     left.appendChild(prompt);
     left.appendChild(meta);
+
+    // Stage 4.5: tag chips + add-tag input. Chips are removable on click.
+    const tagsRow = document.createElement('div');
+    tagsRow.className = 'tl-tags';
+    (run.tags || []).forEach((tag) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'tl-tag';
+      chip.title = `Click to remove "${tag}"`;
+      chip.textContent = tag;
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (removeRunTag(matchKey, tag)) renderHistory();
+      });
+      tagsRow.appendChild(chip);
+    });
+    const addTag = document.createElement('input');
+    addTag.type = 'text';
+    addTag.className = 'tl-tag-input';
+    addTag.placeholder = (run.tags || []).length ? '+ tag' : 'Add tag…';
+    addTag.maxLength = TAG_MAX_LEN;
+    addTag.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const value = addTag.value;
+        addTag.value = '';
+        if (addRunTag(matchKey, value)) renderHistory();
+      } else if (e.key === 'Escape') {
+        addTag.value = '';
+        addTag.blur();
+      }
+    });
+    tagsRow.appendChild(addTag);
+    left.appendChild(tagsRow);
+
+    // Stage 4.5: notes — click-to-edit textarea, autosaves on blur.
+    const notesWrap = document.createElement('div');
+    notesWrap.className = 'tl-notes' + (run.notes ? ' tl-notes--filled' : '');
+    const notesArea = document.createElement('textarea');
+    notesArea.className = 'tl-notes__field';
+    notesArea.rows = 1;
+    notesArea.maxLength = NOTES_MAX_LEN;
+    notesArea.placeholder = 'Add a note…';
+    notesArea.value = run.notes || '';
+    const autosize = () => {
+      notesArea.style.height = 'auto';
+      notesArea.style.height = Math.min(notesArea.scrollHeight, 140) + 'px';
+    };
+    notesArea.addEventListener('input', autosize);
+    notesArea.addEventListener('blur', () => {
+      if (setRunNotes(matchKey, notesArea.value)) {
+        notesWrap.classList.toggle('tl-notes--filled', !!notesArea.value.trim());
+      }
+    });
+    notesWrap.appendChild(notesArea);
+    left.appendChild(notesWrap);
+    // Defer autosize until the textarea is in the DOM and has a layout box.
+    requestAnimationFrame(autosize);
 
     const right = document.createElement('div');
     right.className = 'tl-right';
@@ -2134,6 +2328,145 @@ function renderHistoryDetail(bucket) {
     card.appendChild(right);
     timeline.appendChild(card);
   });
+
+  // Stage 4.5: render the diff panel below the timeline once both
+  // sides are picked. Earlier savedAt → "Run A" so deltas read as
+  // "what changed by Run B".
+  if (runDiffMode && runDiffSelection.length === 2) {
+    const [keyX, keyY] = runDiffSelection;
+    const runX = bucket.runs.find((r) => (r.id || r.savedAt) === keyX);
+    const runY = bucket.runs.find((r) => (r.id || r.savedAt) === keyY);
+    if (runX && runY) {
+      const earlier = new Date(runX.savedAt) <= new Date(runY.savedAt) ? runX : runY;
+      const later = earlier === runX ? runY : runX;
+      timeline.appendChild(buildRunDiffPanel(earlier, later));
+    }
+  }
+}
+
+/**
+ * Stage 4.5: render a side-by-side diff between two history runs.
+ * Returns a detached node so the caller can append it where it fits
+ * (today: directly below the timeline). Diff axes:
+ *   - Overlap score delta
+ *   - Google domains added / removed (B vs A)
+ *   - ChatGPT domains added / removed
+ *   - SERP features added / removed
+ *   - Tags added / removed
+ *   - Notes A / Notes B side-by-side
+ */
+function buildRunDiffPanel(a, b) {
+  const wrap = document.createElement('section');
+  wrap.className = 'run-diff';
+
+  const head = document.createElement('header');
+  head.className = 'run-diff__head';
+  const title = document.createElement('h3');
+  title.className = 'run-diff__title';
+  title.textContent = 'Run diff';
+  head.appendChild(title);
+  const sub = document.createElement('span');
+  sub.className = 'run-diff__sub';
+  const fmt = (d) => d ? new Date(d).toLocaleString() : '—';
+  sub.textContent = `${fmt(a.savedAt)}  →  ${fmt(b.savedAt)}`;
+  head.appendChild(sub);
+  wrap.appendChild(head);
+
+  const overlapDelta = Number(b.overlapScore || 0) - Number(a.overlapScore || 0);
+  const overlapRow = document.createElement('div');
+  overlapRow.className = 'run-diff__row run-diff__row--overlap';
+  overlapRow.innerHTML = `
+    <div class="run-diff__cell">
+      <div class="run-diff__cell-label">RUN A · OVERLAP</div>
+      <div class="run-diff__cell-value">${a.overlapScore || 0}<span class="u">%</span></div>
+    </div>
+    <div class="run-diff__delta ${overlapDelta > 0 ? 'up' : overlapDelta < 0 ? 'down' : 'flat'}">
+      ${overlapDelta > 0 ? `+${overlapDelta}` : overlapDelta}
+    </div>
+    <div class="run-diff__cell">
+      <div class="run-diff__cell-label">RUN B · OVERLAP</div>
+      <div class="run-diff__cell-value">${b.overlapScore || 0}<span class="u">%</span></div>
+    </div>`;
+  wrap.appendChild(overlapRow);
+
+  const setDiff = (av = [], bv = []) => {
+    const aSet = new Set(av);
+    const bSet = new Set(bv);
+    return {
+      added: [...bv].filter((x) => !aSet.has(x)).sort(),
+      removed: [...av].filter((x) => !bSet.has(x)).sort(),
+    };
+  };
+
+  const renderDiffSection = (label, av, bv) => {
+    const { added, removed } = setDiff(av, bv);
+    if (!added.length && !removed.length) return;
+    const sect = document.createElement('div');
+    sect.className = 'run-diff__section';
+    const h = document.createElement('div');
+    h.className = 'run-diff__section-head';
+    h.textContent = label;
+    sect.appendChild(h);
+    const body = document.createElement('div');
+    body.className = 'run-diff__section-body';
+    if (added.length) {
+      const col = document.createElement('div');
+      col.className = 'run-diff__col run-diff__col--added';
+      col.innerHTML = `<div class="run-diff__col-head">Added in B (${added.length})</div>`;
+      added.forEach((d) => {
+        const chip = document.createElement('span');
+        chip.className = 'run-diff__chip run-diff__chip--added';
+        chip.textContent = d;
+        col.appendChild(chip);
+      });
+      body.appendChild(col);
+    }
+    if (removed.length) {
+      const col = document.createElement('div');
+      col.className = 'run-diff__col run-diff__col--removed';
+      col.innerHTML = `<div class="run-diff__col-head">Removed from A (${removed.length})</div>`;
+      removed.forEach((d) => {
+        const chip = document.createElement('span');
+        chip.className = 'run-diff__chip run-diff__chip--removed';
+        chip.textContent = d;
+        col.appendChild(chip);
+      });
+      body.appendChild(col);
+    }
+    sect.appendChild(body);
+    wrap.appendChild(sect);
+  };
+
+  renderDiffSection('Google domains', a.googleDomains, b.googleDomains);
+  renderDiffSection('ChatGPT domains', a.chatgptDomains, b.chatgptDomains);
+  renderDiffSection('SERP features', a.serpFeatures, b.serpFeatures);
+  renderDiffSection('Tags', a.tags || [], b.tags || []);
+
+  // Notes side-by-side (full text, not a set diff).
+  if ((a.notes || '').trim() || (b.notes || '').trim()) {
+    const sect = document.createElement('div');
+    sect.className = 'run-diff__section';
+    const h = document.createElement('div');
+    h.className = 'run-diff__section-head';
+    h.textContent = 'Notes';
+    sect.appendChild(h);
+    const body = document.createElement('div');
+    body.className = 'run-diff__section-body run-diff__section-body--notes';
+    [['Notes A', a.notes], ['Notes B', b.notes]].forEach(([label, text]) => {
+      const col = document.createElement('div');
+      col.className = 'run-diff__col run-diff__col--notes';
+      col.innerHTML = `<div class="run-diff__col-head">${label}</div>`;
+      const p = document.createElement('p');
+      p.className = 'run-diff__notes-text';
+      p.textContent = (text || '').trim() || '—';
+      col.appendChild(p);
+      body.appendChild(col);
+    });
+    sect.appendChild(body);
+    wrap.appendChild(sect);
+  }
+
+  return wrap;
 }
 
 function renderCombined() {
