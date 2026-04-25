@@ -1267,6 +1267,36 @@
     clearChatgptArchive() { return this.remove(STORAGE_KEYS.CHATGPT_ARCHIVE); },
     clearGoogleArchive()  { return this.remove(STORAGE_KEYS.GOOGLE_ARCHIVE); },
 
+    /**
+     * Stage 6.10: factory-reset for testing. Wipes every captured /
+     * derived key — single-slot data, archives, comparison history,
+     * fingerprints, and any in-flight pending* orchestration state.
+     *
+     * Preserves user preferences explicitly: aiqiSettings (auto-capture,
+     * retention caps, registered-domain matching, autoRefreshSeconds)
+     * and inspectorThemeMode (light/dark choice). Both are user-level
+     * decisions independent of the captured datasets.
+     *
+     * Available from the console as
+     *   await self.AIQIShared.storage.clearAllData()
+     * or via the "Reset all data" button in the settings modal.
+     */
+    clearAllData() {
+      const keys = [
+        STORAGE_KEYS.CHATGPT_DATA,
+        STORAGE_KEYS.GOOGLE_DATA,
+        STORAGE_KEYS.CHATGPT_ARCHIVE,
+        STORAGE_KEYS.GOOGLE_ARCHIVE,
+        STORAGE_KEYS.HISTORY,
+        STORAGE_KEYS.LAST_HISTORY_FINGERPRINT,
+        STORAGE_KEYS.PENDING_GOOGLE_QUERY,
+        STORAGE_KEYS.PENDING_GOOGLE_ORCHESTRATION,
+        STORAGE_KEYS.PENDING_CHATGPT_SNAPSHOT,
+        STORAGE_KEYS.ACTIVE_VIEW,
+      ];
+      return this.remove(keys);
+    },
+
     // Trim the archive in-place to the new cap. Used when the user
     // lowers archiveRetention from the settings UI — the caller should
     // invoke this immediately so the reduction is reflected now, not
