@@ -452,6 +452,33 @@ body[data-active-view="history"] .capture-picker {
 .picker-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .picker-select option { background: var(--card); color: var(--ink); }
 
+/* Stage 6.5 — rank-compare polish. Widen the middle column from 70px
+   to 110px so the "GOOG →" / "← GPT" pills don't wrap. Mid cells
+   render as small uppercase mono pills (10px) instead of body text;
+   match (✓) gets a slightly larger glyph in the accent color so the
+   eye picks out hits scanning down the table. Empty side cells
+   ("—" placeholders) drop to ink-4 + opacity 0.5 so unmatched rows
+   stop visually competing with rows that actually have data. */
+.rank-compare-head,
+.rank-row {
+  grid-template-columns: 1fr 110px 1fr !important;
+}
+.rank-row .cell.mid {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  white-space: nowrap;
+}
+.rank-row .cell.mid.mid--match { color: var(--accent); font-size: 14px; letter-spacing: 0; }
+.rank-row .cell.mid.mid--gpt { color: var(--accent); }
+.rank-row .cell.mid.mid--goog { color: var(--warn); }
+.rank-row .cell.empty {
+  color: var(--ink-4);
+  opacity: 0.45;
+}
+
 /* Stage 6 — paired-Google badge inside the conversation picker. Sits
    next to the timestamp chip; ink-2 when present, accent when 1+
    paired Google captures exist. */

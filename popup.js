@@ -803,18 +803,21 @@ function formatPickerTimestamp(iso) {
 }
 
 function buildConversationPickerLabel(conv, isLatest) {
+  // Stage 6.5: title-first reads better than timestamp-first; tags only
+  // when meaningful (drop "1 snapshots"); timestamp suffixed with the
+  // Latest hint inline so we don't burn three separators.
   const stamp = formatPickerTimestamp(conv?.latestChatgptCapture?.capturedAt);
   const raw = conv?.title || conv?.latestChatgptCapture?.latestUserPrompt || conv?.conversationId || 'Untitled conversation';
   const label = sanitizeString(raw, 60);
   const gCount = conv?.googleCaptures?.length || 0;
   const cCount = conv?.chatgptCaptures?.length || 0;
-  const parts = [];
-  if (cCount > 1) parts.push(`${cCount} snapshots`);
-  if (gCount === 0) parts.push('no SERP');
-  else if (gCount === 1) parts.push('Google ✓');
-  else parts.push(`${gCount} SERPs`);
-  if (isLatest) parts.push('Latest');
-  return `${stamp} — ${label} · ${parts.join(' · ')}`;
+  const tags = [];
+  if (gCount === 0) tags.push('no SERP');
+  else if (gCount === 1) tags.push('Google ✓');
+  else tags.push(`${gCount} SERPs`);
+  if (cCount > 1) tags.push(`${cCount} snapshots`);
+  const suffix = isLatest ? `Latest · ${stamp}` : stamp;
+  return `${label} · ${tags.join(' · ')} · ${suffix}`;
 }
 
 function buildStandaloneGoogleLabel(entry) {
@@ -2247,14 +2250,22 @@ function renderCombined() {
       gpt.appendChild(dom);
       gpt.appendChild(meta);
     } else {
+      gpt.classList.add('empty');
       gpt.textContent = '—';
     }
 
     const mid = document.createElement('div');
     mid.className = 'cell mid';
-    mid.textContent = rowData.inChatgpt && rowData.inGoogle
-      ? '✓'
-      : rowData.inChatgpt ? '← GPT only' : 'Goog only →';
+    if (rowData.inChatgpt && rowData.inGoogle) {
+      mid.classList.add('mid--match');
+      mid.textContent = '✓';
+    } else if (rowData.inChatgpt) {
+      mid.classList.add('mid--gpt');
+      mid.textContent = '← GPT';
+    } else {
+      mid.classList.add('mid--goog');
+      mid.textContent = 'GOOG →';
+    }
 
     const goog = document.createElement('div');
     goog.className = 'cell goog';
@@ -2268,6 +2279,7 @@ function renderCombined() {
       goog.appendChild(rank);
       goog.appendChild(dom);
     } else {
+      goog.classList.add('empty');
       goog.textContent = '—';
     }
 

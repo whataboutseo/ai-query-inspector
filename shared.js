@@ -1209,7 +1209,7 @@
       if (!existing) {
         convMap.set(convId, {
           conversationId: convId,
-          title: entry.title || entry.latestUserPrompt || convId,
+          title: '',
           latestChatgptCapture: entry,
           chatgptCaptures: [entry],
           googleCaptures: [],
@@ -1218,7 +1218,6 @@
         existing.chatgptCaptures.push(entry);
         if (ts(entry) > ts(existing.latestChatgptCapture)) {
           existing.latestChatgptCapture = entry;
-          existing.title = entry.title || entry.latestUserPrompt || existing.title;
         }
       }
     }
@@ -1234,6 +1233,25 @@
     for (const conv of convMap.values()) {
       conv.googleCaptures.sort((a, b) => ts(b) - ts(a));
       conv.chatgptCaptures.sort((a, b) => ts(b) - ts(a));
+      // Stage 6.5: pin the title to the ORIGINAL first turn so the picker
+      // doesn't rebadge as the conversation grows new turns. The latest
+      // snapshot's `latestUserPrompt` is the most recent turn, which is
+      // not the conversation's identity. Preference order:
+      //   1. Latest snapshot's conversationTurns[0].prompt (most reliable)
+      //   2. Oldest snapshot's conversationTurns[0].prompt (fallback)
+      //   3. Oldest snapshot's latestUserPrompt — at first capture this
+      //      WAS turn 1's prompt, so it's a good last-ditch original
+      //   4. Oldest snapshot's title (ChatGPT sidebar label)
+      //   5. conversationId
+      const oldest = conv.chatgptCaptures[conv.chatgptCaptures.length - 1];
+      const latest = conv.latestChatgptCapture;
+      const firstTurnPrompt = latest?.conversationTurns?.[0]?.prompt
+        || oldest?.conversationTurns?.[0]?.prompt;
+      conv.title = firstTurnPrompt
+        || oldest?.latestUserPrompt
+        || oldest?.title
+        || latest?.title
+        || conv.conversationId;
     }
     standaloneGoogle.sort((a, b) => ts(b) - ts(a));
     const conversations = Array.from(convMap.values()).sort(
