@@ -1644,9 +1644,11 @@ body.light-mode .metric-meta {
   color: #5f6f9d !important;
 }
 
-body.light-mode a {
-  color: #2140a8 !important;
-}
+/* Stage 5.9.5: removed legacy `body.light-mode a { color: #2140a8 }`
+   override — that was a relic of the old blue-accent palette. With
+   it gone, anchors fall through to inherit from their parent (the
+   design-system pattern), so .compare-cta-secondary's muted ink-3
+   color renders correctly instead of bright blue. */
 
 .turns-wrap {
   display: grid;
