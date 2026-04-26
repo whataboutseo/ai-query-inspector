@@ -3063,7 +3063,7 @@ async function fetchConversationPayloadInPage() {
     const sessionJson = await sessionResp.json();
     const accessToken = typeof sessionJson?.accessToken === 'string' ? sessionJson.accessToken : '';
     if (!accessToken) return { error: 'No access token found in session response.' };
-    const convResp = await fetch(`/backend-api/conversation/${conversationId}`, { credentials: 'include', headers: { Authorization: `Bearer ${accessToken}` } });
+    const convResp = await fetch(`/backend-api/conversation/${encodeURIComponent(conversationId)}`, { credentials: 'include', headers: { Authorization: `Bearer ${accessToken}` } });
     if (!convResp.ok) return { error: `Conversation request failed: ${convResp.status}` };
     const payload = await convResp.json();
     return { conversationId, payload, pageUrl: window.location.href };
