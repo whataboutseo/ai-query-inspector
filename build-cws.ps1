@@ -39,7 +39,8 @@ $excludeNames = @(
     '.gitignore',
     '.gitattributes',
     'README.md',
-    'build-cws.ps1'
+    'build-cws.ps1',
+    'cws'
 )
 $excludeRelative = @(
     'design-system\CLAUDE.md',
