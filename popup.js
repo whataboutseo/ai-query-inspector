@@ -1383,11 +1383,14 @@ function populatePopup() {
     eyebrow.textContent = title ? `CHAT · ${title.toUpperCase()}` : (prompt ? 'LAST PROMPT' : 'NO PROMPT YET');
   }
 
-  // Brand model pill — short for 580px layout.
+  // Brand model pill — short for 580px layout. Hide entirely when no
+  // ChatGPT capture has populated a model name; an empty accent chip
+  // looks like a CSS bug otherwise.
   const modelPill = document.getElementById('popupModelPill');
   if (modelPill) {
     const model = sanitizeString(lastChatgptData?.model || '', 60);
-    modelPill.textContent = model || 'claude';
+    modelPill.textContent = model;
+    modelPill.style.display = model ? '' : 'none';
   }
 
   // Hero retrieval intensity.

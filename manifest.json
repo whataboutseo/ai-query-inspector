@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "AI Query Inspector Claude",
-  "version": "1.11.9",
-  "description": "Local-only AI query inspector for ChatGPT conversations plus local search capture, full-page dashboard, source labeling, and comprehensive exports. Claude-authored rework of the original tool.",
+  "name": "AI Query Inspector",
+  "version": "1.11.10",
+  "description": "Local-only AI query inspector for ChatGPT conversations plus local search capture, full-page dashboard, source labeling, and comprehensive exports.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -10,7 +10,7 @@
     "tabs"
   ],
   "action": {
-    "default_title": "AI Query Inspector Claude",
+    "default_title": "AI Query Inspector",
     "default_popup": "popup.html"
   },
   "icons": {
