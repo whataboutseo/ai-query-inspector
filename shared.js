@@ -1315,10 +1315,37 @@
         STORAGE_KEYS.HISTORY, STORAGE_KEYS.LAST_HISTORY_FINGERPRINT,
         STORAGE_KEYS.THEME_MODE, 'aiqiSettings',
       ]);
+      // Per-key value-shape gates. A curated phishing snapshot could
+      // otherwise replace e.g. comparisonHistory with a string, breaking
+      // every render path that does `history.map(...)`.
+      const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+      const isArrayOrEmpty = (v) => Array.isArray(v);
+      const isObjectOrNull = (v) => v === null || isPlainObject(v);
+      const isString = (v) => typeof v === 'string';
+      const settingsKeys = new Set(Object.keys(DEFAULT_SETTINGS));
+      const validators = {
+        [STORAGE_KEYS.CHATGPT_DATA]:           { check: isObjectOrNull, label: 'object or null' },
+        [STORAGE_KEYS.GOOGLE_DATA]:            { check: isObjectOrNull, label: 'object or null' },
+        [STORAGE_KEYS.CHATGPT_ARCHIVE]:        { check: isArrayOrEmpty, label: 'array' },
+        [STORAGE_KEYS.GOOGLE_ARCHIVE]:         { check: isArrayOrEmpty, label: 'array' },
+        [STORAGE_KEYS.HISTORY]:                { check: isArrayOrEmpty, label: 'array' },
+        [STORAGE_KEYS.LAST_HISTORY_FINGERPRINT]: { check: isString, label: 'string' },
+        [STORAGE_KEYS.THEME_MODE]:             { check: isString, label: 'string' },
+        'aiqiSettings':                        {
+          check: (v) => {
+            if (!isPlainObject(v)) return false;
+            for (const k of Object.keys(v)) if (!settingsKeys.has(k)) return false;
+            return true;
+          },
+          label: `object containing only known settings keys (${[...settingsKeys].join(', ')})`,
+        },
+      };
       const patch = {};
       for (const [k, v] of Object.entries(bundle.data)) {
         if (!allowed.has(k)) continue;
         if (v === undefined) continue;
+        const rule = validators[k];
+        if (rule && !rule.check(v)) throw new Error(`Invalid bundle: "${k}" must be ${rule.label}.`);
         patch[k] = v;
       }
       // Wipe before write so a smaller incoming archive doesn't end up
