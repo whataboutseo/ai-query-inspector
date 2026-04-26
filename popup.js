@@ -294,7 +294,10 @@ function isGeminiUrl(url = '') {
 }
 
 function isSearchUrl(url = '') {
-  return /^https:\/\/((([a-z0-9-]+\.)*google\.)|(([a-z0-9-]+\.)*bing\.com)|duckduckgo\.com)/i.test(url);
+  // Anchor each TLD with a trailing path separator so e.g. "google.evil.com"
+  // can't satisfy a "google\." prefix match. Matches the host_permissions
+  // grants in manifest.json (*.google.com, www.bing.com, duckduckgo.com).
+  return /^https:\/\/(?:(?:[a-z0-9-]+\.)*google\.com|(?:[a-z0-9-]+\.)*bing\.com|duckduckgo\.com)\//i.test(url);
 }
 
 function isInspectableUrl(url = '') {
