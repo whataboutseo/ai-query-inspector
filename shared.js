@@ -1475,16 +1475,41 @@
       const stored = await chrome.storage.local.get(SETTINGS_KEY);
       const value = stored?.[SETTINGS_KEY];
       if (!value || typeof value !== 'object') return { ...DEFAULT_SETTINGS };
-      return { ...DEFAULT_SETTINGS, ...value };
+      // Re-clamp on read so a pre-clamp install or any out-of-band write
+      // can't propagate wild values to renderers.
+      return sanitizeSettings({ ...DEFAULT_SETTINGS, ...value });
     } catch {
       return { ...DEFAULT_SETTINGS };
     }
   }
 
+  // Coerce + clamp every known setting so a tampered import bundle or a
+  // rogue caller can't push wild values onto disk. Unknown keys in the
+  // patch are dropped (settings are an explicit allowlist).
+  function sanitizeSettings(input) {
+    const src = (input && typeof input === 'object') ? input : {};
+    const clampInt = (v, min, max, fallback) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return fallback;
+      const i = Math.trunc(n);
+      if (i < min) return min;
+      if (i > max) return max;
+      return i;
+    };
+    const coerceBool = (v, fallback) => typeof v === 'boolean' ? v : fallback;
+    return {
+      autoCaptureChatgpt:      coerceBool(src.autoCaptureChatgpt, DEFAULT_SETTINGS.autoCaptureChatgpt),
+      matchByRegisteredDomain: coerceBool(src.matchByRegisteredDomain, DEFAULT_SETTINGS.matchByRegisteredDomain),
+      autoRefreshSeconds:      clampInt(src.autoRefreshSeconds, 0, 3600, DEFAULT_SETTINGS.autoRefreshSeconds),
+      historyRetention:        clampInt(src.historyRetention, 0, 5000, DEFAULT_SETTINGS.historyRetention),
+      archiveRetention:        clampInt(src.archiveRetention, 0, 5000, DEFAULT_SETTINGS.archiveRetention),
+    };
+  }
+
   async function setSettings(patch) {
     if (typeof chrome === 'undefined' || !chrome.storage?.local) return { ...DEFAULT_SETTINGS };
     const current = await getSettings();
-    const next = { ...current, ...(patch || {}) };
+    const next = sanitizeSettings({ ...current, ...(patch || {}) });
     await chrome.storage.local.set({ [SETTINGS_KEY]: next });
     return next;
   }
