@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AI Query Inspector",
-  "version": "1.0.1",
-  "description": "Local-only AI query inspector for ChatGPT conversations plus local search capture, full-page dashboard, source labeling, and comprehensive exports.",
+  "version": "1.0.2",
+  "description": "Compare what ChatGPT cites against Google, Bing, or DuckDuckGo rankings — locally, on-device, with zero data leaving your browser.",
   "permissions": [
     "activeTab",
     "scripting",
