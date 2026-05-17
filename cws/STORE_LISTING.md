@@ -97,7 +97,11 @@ For each category ticked, also confirm:
 
 ## Privacy policy URL
 
-The CWS submission requires a publicly hosted privacy policy URL. Publish `cws/PRIVACY_POLICY.md` somewhere durable (GitHub Pages, the project website, or a static hosting service) and paste the resulting URL into the dashboard.
+Paste into the dashboard:
+
+> https://github.com/whataboutseo/ai-query-inspector/blob/main/cws/PRIVACY_POLICY.md
+
+This is GitHub's rendered-markdown URL — stable, public, and accepted by CWS reviewers. The policy file has Jekyll `permalink: /privacy/` front matter so if Pages is enabled later, the prettier URL `https://whataboutseo.github.io/ai-query-inspector/privacy/` will also work and can be swapped in.
 
 ---
 

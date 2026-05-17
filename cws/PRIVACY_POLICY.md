@@ -1,6 +1,11 @@
+---
+permalink: /privacy/
+title: Privacy Policy — AI Query Inspector
+---
+
 # Privacy Policy — AI Query Inspector
 
-**Effective date:** _<fill in publication date>_
+**Effective date:** 2026-05-17
 
 AI Query Inspector ("the extension") is a local-only browser extension that helps you inspect ChatGPT conversation payloads and capture Google, Bing, and DuckDuckGo search results pages so you can compare what an AI assistant cites against what organic search ranks. It is designed so that **no information ever leaves your device.**
 
@@ -67,4 +72,4 @@ If this policy ever changes (for example, if a future version of the extension i
 
 ## Contact
 
-For questions about this policy, open an issue at _<fill in repository URL>_ or email _<fill in contact email>_.
+For questions about this policy, open an issue at [https://github.com/whataboutseo/ai-query-inspector](https://github.com/whataboutseo/ai-query-inspector) or email [simpleseotool@gmail.com](mailto:simpleseotool@gmail.com).
