@@ -473,18 +473,32 @@
       out.push({ q: clean, domains: doms });
     };
 
-    // Shape 1 — JSON blob. The current (2024-present) shape is
-    //   {"search_query": [{"q": "...", "domains": [...]}, ...]}
-    // but older/alt shapes exist:
-    //   {"queries": ["..."]}
-    //   {"q": "..."}  (single)
-    //   {"prompt": "...", "queries": [{"q":"..."}]}
+    // Shape 1 — JSON blob inside a `code` content block. Multiple
+    // variants observed across ChatGPT model generations:
+    //   {"search_query":          [{"q":"...","domains":[...]}, ...]}  // pre-5.5
+    //   {"system1_search_query":  [{"q":"..."}, ...]}                  // gpt-5-5-thinking, fine-grained
+    //   {"product_query":         {"search":["...", ...]}}             // gpt-5-5-thinking, orchestration
+    //   {"queries":               ["..."]}
+    //   {"q":                     "..."}                               // single
+    //   {"prompt":"...","queries":[{"q":"..."}]}
+    // The *_search_query key family is scanned by regex so future
+    // variants (system2_search_query, etc.) work without code changes.
     try {
       const parsed = JSON.parse(text);
       if (parsed && typeof parsed === 'object') {
-        if (Array.isArray(parsed.search_query)) {
-          parsed.search_query.forEach((sq) => {
+        for (const key of Object.keys(parsed)) {
+          if (!/(^|_)search_query$/i.test(key)) continue;
+          const arr = parsed[key];
+          if (!Array.isArray(arr)) continue;
+          arr.forEach((sq) => {
             if (sq && typeof sq === 'object') pushQuery(sq.q, sq.domains || []);
+          });
+        }
+        if (parsed.product_query && typeof parsed.product_query === 'object'
+            && Array.isArray(parsed.product_query.search)) {
+          parsed.product_query.search.forEach((s) => {
+            if (typeof s === 'string') pushQuery(s, []);
+            else if (s && typeof s === 'object') pushQuery(s.q || s.query, s.domains || []);
           });
         }
         if (Array.isArray(parsed.queries)) {

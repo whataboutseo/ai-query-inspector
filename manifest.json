@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Query Inspector",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Local-only AI query inspector for ChatGPT conversations plus local search capture, full-page dashboard, source labeling, and comprehensive exports.",
   "permissions": [
     "activeTab",
